@@ -758,7 +758,6 @@ const validateAndUpdateRange = (axis, bound) => {
 // Function to initialize selected companies
 const initializeSelectedCompanies = () => {
   const companies = Object.keys(companyNames);
-  console.log('companyNames中的公司列表:', companies);
   companies.forEach(company => {
     selectedCompanies.value[company] = true;
   });

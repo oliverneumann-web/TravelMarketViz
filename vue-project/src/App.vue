@@ -261,7 +261,8 @@ const companyNames = {
   'Traveloka': 'Traveloka',
   'KYAK': 'KYAK',
   'eLONG': 'eLONG',
-  'Tongcheng': 'Tongcheng',
+  'Tongcheng': 'Tongcheng Travel',
+  'Tongcheng Travel': 'Tongcheng Travel',
 };
 
 const navigation = [

@@ -71,7 +71,7 @@ ticker_to_company = {
     'IXIGO': 'Ixigo',
     'FLT': 'Flight Centre',
     'LONG': 'eLong',  # 确保eLong使用LONG作为ticker
-    'TCEL': 'TongCheng',
+    'TCEL': 'Tongcheng',
     'KYAK': 'KAYAK'  # 修正：CSV中是KYAK而不是KAYAK
 }
 
@@ -117,7 +117,7 @@ for ticker, company in ticker_to_company.items():
 # 特定列名到ticker的直接映射
 special_column_to_ticker = {
     'elong': 'LONG',
-    'tongcheng': 'TCEL',
+    'Tongcheng': 'TCEL',
     'webjet': 'WBJ',
     'webjet ota': 'WBJ',
     'kyak': 'KYAK',
@@ -283,7 +283,7 @@ def get_logo_path(identifier, year):
         else:
             return f'{logo_base_path}Orbitz_logo.png'
     elif company == 'TCEL':
-        return f'{logo_base_path}TongCheng_logo.png'
+        return f'{logo_base_path}Tongcheng_logo.png'
     elif company == 'LONG':
         return f'{logo_base_path}Elong_logo.png'
     elif company == 'FLT':
