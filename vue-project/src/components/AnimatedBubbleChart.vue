@@ -639,6 +639,9 @@ let update; // Declare update function reference
 // Add selected companies state
 const selectedCompanies = ref({});
 
+// Add flag to track if range has been automatically set
+const hasAutoSetRange = ref(false);
+
 // Add axis range state
 const xAxisRange = ref({
   min: '-50',
@@ -726,6 +729,9 @@ const validateAndUpdateRange = (axis, bound) => {
       return;
     }
   }
+  
+  // Mark range as manually set
+  hasAutoSetRange.value = true;
   
   // Update global domain and redraw chart if input is valid
   if (axis === 'x') {
@@ -978,8 +984,10 @@ const processExcelData = (file) => {
       // Filter out incomplete data points
       mergedData.value = processedData.filter(d => d.hasBothQuarters);
       
-      // 计算所有数据点的最小和最大值，并与默认值比较，如果超出则扩展范围
-      if (mergedData.value.length > 0) {
+      // Calculate min and max values from all data points and adjust axis ranges if needed
+      // Only set ranges automatically on first data load
+      if (mergedData.value.length > 0 && !hasAutoSetRange.value) {
+        console.log('First data load, automatically setting axis ranges');
         const ebitdaValues = mergedData.value.map(d => d.ebitdaMargin);
         const minEbitda = Math.min(...ebitdaValues);
         const maxEbitda = Math.max(...ebitdaValues);
@@ -988,11 +996,11 @@ const processExcelData = (file) => {
         const minRevenue = Math.min(...revenueValues);
         const maxRevenue = Math.max(...revenueValues);
         
-        // 添加10%的边距
+        // Add 10% margin
         const ebitdaMargin = (maxEbitda - minEbitda) * 0.1;
         const revenueMargin = (maxRevenue - minRevenue) * 0.1;
         
-        // 比较默认值和实际数据范围，取较大范围
+        // Compare default values with actual data range and take wider range
         globalXDomain = [
           Math.min(globalXDomain[0], minEbitda - ebitdaMargin),
           Math.max(globalXDomain[1], maxEbitda + ebitdaMargin)
@@ -1002,16 +1010,19 @@ const processExcelData = (file) => {
           Math.max(globalYDomain[1], maxRevenue + revenueMargin)
         ];
         
-        // 更新UI中显示的范围值
+        // Update range values in UI
         xAxisRange.value.min = (globalXDomain[0] * 100).toFixed(0);
         xAxisRange.value.max = (globalXDomain[1] * 100).toFixed(0);
         yAxisRange.value.min = (globalYDomain[0] * 100).toFixed(0);
         yAxisRange.value.max = (globalYDomain[1] * 100).toFixed(0);
         
-        console.log('自动调整后的坐标轴范围:', {
+        console.log('Initial automatically adjusted axis ranges:', {
           xDomain: globalXDomain.map(v => (v*100).toFixed(1) + '%'),
           yDomain: globalYDomain.map(v => (v*100).toFixed(1) + '%')
         });
+        
+        // Mark ranges as automatically set
+        hasAutoSetRange.value = true;
       }
       
       console.log('=== Data Processing Debug ===')
@@ -1257,52 +1268,69 @@ const initChart = () => {
       
       console.log('Filtered data for rendering:', currentData);
       
-      // 计算当前季度数据的范围，如果超出全局范围则调整
+      // Calculate current quarter data range
       if (currentData.length > 0) {
-        // 提取当前季度的数值范围
-        const ebitdaValues = currentData.map(d => d.ebitdaMargin);
-        const minEbitda = Math.min(...ebitdaValues);
-        const maxEbitda = Math.max(...ebitdaValues);
+        // If ranges have been manually set, use the user-defined ranges
+        if (hasAutoSetRange.value) {
+          console.log(`Using user-defined axis ranges:`, {
+            xDomain: globalXDomain.map(v => (v*100).toFixed(1) + '%'),
+            yDomain: globalYDomain.map(v => (v*100).toFixed(1) + '%')
+          });
+          
+          // Only update scales, don't update UI input values
+          xScale.domain(globalXDomain);
+          yScale.domain(globalYDomain);
+        } 
+        else {
+          // Automatic calculation on first load
+          // Extract current quarter value ranges
+          const ebitdaValues = currentData.map(d => d.ebitdaMargin);
+          const minEbitda = Math.min(...ebitdaValues);
+          const maxEbitda = Math.max(...ebitdaValues);
+          
+          const revenueValues = currentData.map(d => d.revenueGrowth);
+          const minRevenue = Math.min(...revenueValues);
+          const maxRevenue = Math.max(...revenueValues);
+          
+          // Add margins
+          const ebitdaMargin = (maxEbitda - minEbitda) * 0.1;
+          const revenueMargin = (maxRevenue - minRevenue) * 0.1;
+          
+          // Check if current quarter data exceeds default range
+          const defaultXDomain = [-0.5, 0.8]; // Original default values
+          const defaultYDomain = [-0.3, 1.1]; // Original default values
+          
+          // Use default values unless data exceeds range
+          const currentXDomain = [
+            Math.min(defaultXDomain[0], minEbitda - ebitdaMargin),
+            Math.max(defaultXDomain[1], maxEbitda + ebitdaMargin)
+          ];
+          
+          const currentYDomain = [
+            Math.min(defaultYDomain[0], minRevenue - revenueMargin),
+            Math.max(defaultYDomain[1], maxRevenue + revenueMargin)
+          ];
+          
+          // Update scales
+          xScale.domain(currentXDomain);
+          yScale.domain(currentYDomain);
+          
+          // Update UI range values
+          xAxisRange.value.min = (currentXDomain[0] * 100).toFixed(0);
+          xAxisRange.value.max = (currentXDomain[1] * 100).toFixed(0);
+          yAxisRange.value.min = (currentYDomain[0] * 100).toFixed(0);
+          yAxisRange.value.max = (currentYDomain[1] * 100).toFixed(0);
+          
+          console.log(`Quarter ${years.value[quarterIndex]} initial auto-adjusted ranges:`, {
+            xDomain: currentXDomain.map(v => (v*100).toFixed(1) + '%'),
+            yDomain: currentYDomain.map(v => (v*100).toFixed(1) + '%')
+          });
+          
+          // Mark first auto-adjustment as complete
+          hasAutoSetRange.value = true;
+        }
         
-        const revenueValues = currentData.map(d => d.revenueGrowth);
-        const minRevenue = Math.min(...revenueValues);
-        const maxRevenue = Math.max(...revenueValues);
-        
-        // 添加边距
-        const ebitdaMargin = (maxEbitda - minEbitda) * 0.1;
-        const revenueMargin = (maxRevenue - minRevenue) * 0.1;
-        
-        // 检查当前季度数据是否超出默认范围
-        const defaultXDomain = [-0.5, 0.8]; // 原始默认值
-        const defaultYDomain = [-0.3, 1.1]; // 原始默认值
-        
-        // 使用默认值，除非数据超出范围
-        const currentXDomain = [
-          Math.min(defaultXDomain[0], minEbitda - ebitdaMargin),
-          Math.max(defaultXDomain[1], maxEbitda + ebitdaMargin)
-        ];
-        
-        const currentYDomain = [
-          Math.min(defaultYDomain[0], minRevenue - revenueMargin),
-          Math.max(defaultYDomain[1], maxRevenue + revenueMargin)
-        ];
-        
-        // 更新比例尺
-        xScale.domain(currentXDomain);
-        yScale.domain(currentYDomain);
-        
-        // 更新UI中显示的范围值
-        xAxisRange.value.min = (currentXDomain[0] * 100).toFixed(0);
-        xAxisRange.value.max = (currentXDomain[1] * 100).toFixed(0);
-        yAxisRange.value.min = (currentYDomain[0] * 100).toFixed(0);
-        yAxisRange.value.max = (currentYDomain[1] * 100).toFixed(0);
-        
-        console.log(`季度 ${years.value[quarterIndex]} 调整后的坐标轴范围:`, {
-          xDomain: currentXDomain.map(v => (v*100).toFixed(1) + '%'),
-          yDomain: currentYDomain.map(v => (v*100).toFixed(1) + '%')
-        });
-        
-        // 更新坐标轴
+        // Update axes
         svg.select(".x-axis").transition().duration(750).call(
           d3.axisBottom(xScale).ticks(8).tickFormat(d => (d * 100).toFixed(0) + "%")
         );
