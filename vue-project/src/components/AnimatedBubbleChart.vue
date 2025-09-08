@@ -551,7 +551,7 @@ const colorDict = {
   'Webjet OTA': '#e74c3c',
   'KYAK': '#ff690f',
   'eLong': '#2141b2',
-  'Tongcheng': '#5b318f',
+  'Tongcheng Travel': '#5b318f',
 };
 
 // Company logos
@@ -583,7 +583,7 @@ const logoDict = {
   'Webjet OTA': OTA_LOGO,
   'KYAK': KYAK_LOGO,
   'eLong': ELONG_LOGO,
-  'Tongcheng': TONGCHENG_LOGO,
+  'Tongcheng Travel': TONGCHENG_LOGO,
 };
 
 // Add company names mapping
@@ -616,7 +616,7 @@ const companyNames = {
   'Traveloka': 'Traveloka',
   'KYAK': 'KYAK',
   'eLong': 'eLong',
-  'Tongcheng': 'Tongcheng',
+  'Tongcheng Travel': 'Tongcheng Travel',
 };
 
 const currentYearIndex = ref(0);
