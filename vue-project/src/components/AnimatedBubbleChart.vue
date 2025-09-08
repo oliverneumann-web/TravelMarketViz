@@ -628,8 +628,6 @@ const emit = defineEmits(['data-update', 'company-select', 'quarters-loaded']);
 
 // Add these as component-level variables to maintain consistent scales
 let xScale, yScale;
-let globalXDomain = [-0.5, 0.8];  // EBITDA margin range: -50% to 80%
-let globalYDomain = [-0.3, 1.1]; // Revenue growth range: -30% to 100%
 
 // Add chart dimensions
 const margin = { top: 50, right: 100, bottom: 50, left: 60 };
@@ -639,8 +637,10 @@ let update; // Declare update function reference
 // Add selected companies state
 const selectedCompanies = ref({});
 
-// Add flag to track if range has been automatically set
-const hasAutoSetRange = ref(false);
+// Create a map to store custom ranges for each quarter
+const quarterRanges = ref({});
+// Flag to track if user has manually set ranges for current quarter
+const currentQuarterHasCustomRange = ref(false);
 
 // Add axis range state
 const xAxisRange = ref({
@@ -656,6 +656,10 @@ const yAxisRange = ref({
   minError: '',
   maxError: ''
 });
+
+// Default ranges for when no data is available
+const DEFAULT_X_DOMAIN = [-0.5, 0.8]; // Default EBITDA range: -50% to 80%
+const DEFAULT_Y_DOMAIN = [-0.3, 1.1]; // Default Revenue growth range: -30% to 110%
 
 // Add after the axis range state declarations
 const chartDimensions = ref({
@@ -730,32 +734,48 @@ const validateAndUpdateRange = (axis, bound) => {
     }
   }
   
-  // Mark range as manually set
-  hasAutoSetRange.value = true;
-  
-  // Update global domain and redraw chart if input is valid
-  if (axis === 'x') {
-    const xMin = parseFloat(xAxisRange.value.min) / 100;
-    const xMax = parseFloat(xAxisRange.value.max) / 100;
-    if (!isNaN(xMin) && !isNaN(xMax) && xMin < xMax) {
-      globalXDomain = [xMin, xMax];
-      console.log('Updated X axis domain:', globalXDomain);
-    }
-  } else {
-    const yMin = parseFloat(yAxisRange.value.min) / 100;
-    const yMax = parseFloat(yAxisRange.value.max) / 100;
-    if (!isNaN(yMin) && !isNaN(yMax) && yMin < yMax) {
-      globalYDomain = [yMin, yMax];
-      console.log('Updated Y axis domain:', globalYDomain);
+  // Mark current quarter as having custom range
+  if (years.value.length > 0) {
+    const currentQuarter = years.value[currentYearIndex.value];
+    if (currentQuarter) {
+      currentQuarterHasCustomRange.value = true;
+      
+      // Initialize range for current quarter if it doesn't exist
+      if (!quarterRanges.value[currentQuarter]) {
+        quarterRanges.value[currentQuarter] = {
+          xDomain: [
+            parseFloat(xAxisRange.value.min) / 100,
+            parseFloat(xAxisRange.value.max) / 100
+          ],
+          yDomain: [
+            parseFloat(yAxisRange.value.min) / 100,
+            parseFloat(yAxisRange.value.max) / 100
+          ]
+        };
+      }
+      
+      // Update the specific axis that was changed
+      if (axis === 'x') {
+        const xMin = parseFloat(xAxisRange.value.min) / 100;
+        const xMax = parseFloat(xAxisRange.value.max) / 100;
+        if (!isNaN(xMin) && !isNaN(xMax) && xMin < xMax) {
+          quarterRanges.value[currentQuarter].xDomain = [xMin, xMax];
+          console.log(`Updated X axis domain for ${currentQuarter}:`, quarterRanges.value[currentQuarter].xDomain);
+        }
+      } else {
+        const yMin = parseFloat(yAxisRange.value.min) / 100;
+        const yMax = parseFloat(yAxisRange.value.max) / 100;
+        if (!isNaN(yMin) && !isNaN(yMax) && yMin < yMax) {
+          quarterRanges.value[currentQuarter].yDomain = [yMin, yMax];
+          console.log(`Updated Y axis domain for ${currentQuarter}:`, quarterRanges.value[currentQuarter].yDomain);
+        }
+      }
     }
   }
   
   // Only update chart if both values are valid and min < max
   if (!range.minError && !range.maxError) {
-    console.log('Updating chart with new domains:', { 
-      xDomain: globalXDomain, 
-      yDomain: globalYDomain 
-    });
+    console.log('Updating chart with custom ranges');
     initChart();
     update(currentYearIndex.value);
   }
@@ -984,46 +1004,8 @@ const processExcelData = (file) => {
       // Filter out incomplete data points
       mergedData.value = processedData.filter(d => d.hasBothQuarters);
       
-      // Calculate min and max values from all data points and adjust axis ranges if needed
-      // Only set ranges automatically on first data load
-      if (mergedData.value.length > 0 && !hasAutoSetRange.value) {
-        console.log('First data load, automatically setting axis ranges');
-        const ebitdaValues = mergedData.value.map(d => d.ebitdaMargin);
-        const minEbitda = Math.min(...ebitdaValues);
-        const maxEbitda = Math.max(...ebitdaValues);
-        
-        const revenueValues = mergedData.value.map(d => d.revenueGrowth);
-        const minRevenue = Math.min(...revenueValues);
-        const maxRevenue = Math.max(...revenueValues);
-        
-        // Add 10% margin
-        const ebitdaMargin = (maxEbitda - minEbitda) * 0.1;
-        const revenueMargin = (maxRevenue - minRevenue) * 0.1;
-        
-        // Compare default values with actual data range and take wider range
-        globalXDomain = [
-          Math.min(globalXDomain[0], minEbitda - ebitdaMargin),
-          Math.max(globalXDomain[1], maxEbitda + ebitdaMargin)
-        ];
-        globalYDomain = [
-          Math.min(globalYDomain[0], minRevenue - revenueMargin),
-          Math.max(globalYDomain[1], maxRevenue + revenueMargin)
-        ];
-        
-        // Update range values in UI
-        xAxisRange.value.min = (globalXDomain[0] * 100).toFixed(0);
-        xAxisRange.value.max = (globalXDomain[1] * 100).toFixed(0);
-        yAxisRange.value.min = (globalYDomain[0] * 100).toFixed(0);
-        yAxisRange.value.max = (globalYDomain[1] * 100).toFixed(0);
-        
-        console.log('Initial automatically adjusted axis ranges:', {
-          xDomain: globalXDomain.map(v => (v*100).toFixed(1) + '%'),
-          yDomain: globalYDomain.map(v => (v*100).toFixed(1) + '%')
-        });
-        
-        // Mark ranges as automatically set
-        hasAutoSetRange.value = true;
-      }
+      // We no longer need to set global ranges during data load
+      // Each quarter will get its own range when first viewed
       
       console.log('=== Data Processing Debug ===')
       console.log('Total processed data points before filtering:', processedData.length);
@@ -1090,7 +1072,13 @@ const currentQuarter = computed(() => {
 
 // Handle slider change
 const handleSliderChange = (event) => {
-  currentYearIndex.value = parseInt(event.target.value);
+  const newIndex = parseInt(event?.target?.value || event);
+  if (isNaN(newIndex)) return;
+  
+  // Reset custom range flag when changing quarters
+  currentQuarterHasCustomRange.value = false;
+  currentYearIndex.value = newIndex;
+  
   if (update) update(currentYearIndex.value);
 };
 
@@ -1193,13 +1181,13 @@ const initChart = () => {
     .attr("height", "100%")
     .attr("fill", "white");
     
-  // Create scales
+  // Create scales with default domains
   xScale = d3.scaleLinear()
-      .domain(globalXDomain)
+      .domain(DEFAULT_X_DOMAIN)
     .range([margin.left, width - margin.right]);
 
   yScale = d3.scaleLinear()
-      .domain(globalYDomain)
+      .domain(DEFAULT_Y_DOMAIN)
     .range([height - margin.bottom, margin.top]);
 
     // Add axes
@@ -1269,21 +1257,49 @@ const initChart = () => {
       console.log('Filtered data for rendering:', currentData);
       
       // Calculate current quarter data range
+      const currentQuarter = years.value[quarterIndex];
+      console.log(`Updating chart for quarter: ${currentQuarter}`);
+      
       if (currentData.length > 0) {
-        // If ranges have been manually set, use the user-defined ranges
-        if (hasAutoSetRange.value) {
-          console.log(`Using user-defined axis ranges:`, {
-            xDomain: globalXDomain.map(v => (v*100).toFixed(1) + '%'),
-            yDomain: globalYDomain.map(v => (v*100).toFixed(1) + '%')
+        // Check if user has manually set ranges for this quarter
+        if (currentQuarterHasCustomRange.value && quarterRanges.value[currentQuarter]) {
+          const customRange = quarterRanges.value[currentQuarter];
+          console.log(`Using custom ranges for ${currentQuarter}:`, {
+            xDomain: customRange.xDomain.map(v => (v*100).toFixed(1) + '%'),
+            yDomain: customRange.yDomain.map(v => (v*100).toFixed(1) + '%')
           });
           
-          // Only update scales, don't update UI input values
-          xScale.domain(globalXDomain);
-          yScale.domain(globalYDomain);
-        } 
+          // Use the custom ranges for this quarter
+          xScale.domain(customRange.xDomain);
+          yScale.domain(customRange.yDomain);
+          
+          // Update UI input values to match the custom range
+          xAxisRange.value.min = (customRange.xDomain[0] * 100).toFixed(0);
+          xAxisRange.value.max = (customRange.xDomain[1] * 100).toFixed(0);
+          yAxisRange.value.min = (customRange.yDomain[0] * 100).toFixed(0);
+          yAxisRange.value.max = (customRange.yDomain[1] * 100).toFixed(0);
+        }
+        // Check if we already calculated optimal range for this quarter
+        else if (quarterRanges.value[currentQuarter]) {
+          const savedRange = quarterRanges.value[currentQuarter];
+          console.log(`Using saved optimal ranges for ${currentQuarter}:`, {
+            xDomain: savedRange.xDomain.map(v => (v*100).toFixed(1) + '%'),
+            yDomain: savedRange.yDomain.map(v => (v*100).toFixed(1) + '%')
+          });
+          
+          // Use the saved ranges
+          xScale.domain(savedRange.xDomain);
+          yScale.domain(savedRange.yDomain);
+          
+          // Update UI input values to match
+          xAxisRange.value.min = (savedRange.xDomain[0] * 100).toFixed(0);
+          xAxisRange.value.max = (savedRange.xDomain[1] * 100).toFixed(0);
+          yAxisRange.value.min = (savedRange.yDomain[0] * 100).toFixed(0);
+          yAxisRange.value.max = (savedRange.yDomain[1] * 100).toFixed(0);
+        }
+        // Otherwise calculate optimal range for this quarter
         else {
-          // Automatic calculation on first load
-          // Extract current quarter value ranges
+          // Extract value ranges for current quarter data
           const ebitdaValues = currentData.map(d => d.ebitdaMargin);
           const minEbitda = Math.min(...ebitdaValues);
           const maxEbitda = Math.max(...ebitdaValues);
@@ -1293,12 +1309,12 @@ const initChart = () => {
           const maxRevenue = Math.max(...revenueValues);
           
           // Add margins
-          const ebitdaMargin = (maxEbitda - minEbitda) * 0.1;
-          const revenueMargin = (maxRevenue - minRevenue) * 0.1;
+          const ebitdaMargin = Math.max(0.05, (maxEbitda - minEbitda) * 0.1);
+          const revenueMargin = Math.max(0.05, (maxRevenue - minRevenue) * 0.1);
           
           // Check if current quarter data exceeds default range
-          const defaultXDomain = [-0.5, 0.8]; // Original default values
-          const defaultYDomain = [-0.3, 1.1]; // Original default values
+          const defaultXDomain = DEFAULT_X_DOMAIN;
+          const defaultYDomain = DEFAULT_Y_DOMAIN;
           
           // Use default values unless data exceeds range
           const currentXDomain = [
@@ -1311,6 +1327,12 @@ const initChart = () => {
             Math.max(defaultYDomain[1], maxRevenue + revenueMargin)
           ];
           
+          // Save this calculated range for future reference
+          quarterRanges.value[currentQuarter] = {
+            xDomain: currentXDomain,
+            yDomain: currentYDomain
+          };
+          
           // Update scales
           xScale.domain(currentXDomain);
           yScale.domain(currentYDomain);
@@ -1321,13 +1343,10 @@ const initChart = () => {
           yAxisRange.value.min = (currentYDomain[0] * 100).toFixed(0);
           yAxisRange.value.max = (currentYDomain[1] * 100).toFixed(0);
           
-          console.log(`Quarter ${years.value[quarterIndex]} initial auto-adjusted ranges:`, {
+          console.log(`Calculated optimal ranges for ${currentQuarter}:`, {
             xDomain: currentXDomain.map(v => (v*100).toFixed(1) + '%'),
             yDomain: currentYDomain.map(v => (v*100).toFixed(1) + '%')
           });
-          
-          // Mark first auto-adjustment as complete
-          hasAutoSetRange.value = true;
         }
         
         // Update axes
