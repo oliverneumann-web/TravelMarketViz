@@ -88,7 +88,8 @@ const companyColors = {
   'Cleartrip': '#1BA0E2',  // Cleartrip - Light Blue
   'FLT': '#D35400',    // Flight Centre - Orange
   'Almosafer': '#8E44AD',  // Almosafer - Purple
-  'Webjet OTA': '#2C3E50'  // Webjet OTA - Dark Blue
+  'Webjet OTA': '#2C3E50',  // Webjet OTA - Dark Blue
+  'Tongcheng Travel': '#5b318f',
 }
 
 // Default color for companies without specific colors
@@ -123,7 +124,8 @@ const companyNames = {
   'Cleartrip': 'Cleartrip',
   'FLT': 'Flight Centre',
   'Almosafer': 'Almosafer',
-  'Webjet OTA': 'Webjet OTA'
+  'Webjet OTA': 'Webjet OTA',
+  'Tongcheng Travel': 'Tongcheng Travel'
 }
 
 // Add new imports for logos
@@ -152,7 +154,9 @@ const logoImports = {
   'Cleartrip': new URL('/logos/Cleartrip_temp_logo.png', import.meta.url).href,
   'FLT': new URL('/logos/FLT_temp_logo.png', import.meta.url).href,
   'Almosafer': new URL('/logos/Almosafer_temp_logo.png', import.meta.url).href,
-  'Webjet OTA': new URL('/logos/Webjet_OTA_temp_logo.png', import.meta.url).href
+  'Webjet OTA': new URL('/logos/Webjet_OTA_temp_logo.png', import.meta.url).href,
+  'Tongcheng Travel': new URL('/logos/Tongcheng_logo.png', import.meta.url).href
+
 }
 
 const importFromGoogleSheet = async () => {
