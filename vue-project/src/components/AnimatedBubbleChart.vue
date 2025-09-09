@@ -851,10 +851,10 @@ const processExcelData = (file) => {
       const quarters = new Set();
       
       // 记录所有数据的最大最小值
-      let globalMinEbitda = globalXDomain[0];
-      let globalMaxEbitda = globalXDomain[1];
-      let globalMinRevenue = globalYDomain[0];
-      let globalMaxRevenue = globalYDomain[1];
+      let globalMinEbitda = DEFAULT_X_DOMAIN[0];
+      let globalMaxEbitda = DEFAULT_X_DOMAIN[1];
+      let globalMinRevenue = DEFAULT_Y_DOMAIN[0];
+      let globalMaxRevenue = DEFAULT_Y_DOMAIN[1];
       
       // Function to check if a string is a valid quarter
       const isValidQuarter = (str) => {
