@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.10
 import os
 import argparse
 import pandas as pd
@@ -296,12 +296,10 @@ def get_logo_path(identifier, year):
         return f'{logo_base_path}ABNB_logo.png'
     elif company == 'KYAK' or company == 'KAYAK':  # 修正：CSV中是KYAK而不是KAYAK
         # 使用现有的Kayak logo文件
-        if year < 2009.0:
-            return f'{logo_base_path}Kayak-Logo-2000-2009.png'
-        elif year < 2015.0:
-            return f'{logo_base_path}Kayak-Logo-2009-2015.png'
+        if year < 2018.0:
+            return f'{logo_base_path}Kayak1_logo.png'
         else:
-            return f'{logo_base_path}Kayak-Logo-2015-2018.png'
+            return f'{logo_base_path}Kayak_logo.png'
     else:
         # 检查是否有温度logo，如果有则优先使用
         temp_logo_path = f'{logo_base_path}{company}_temp_logo.png'
@@ -342,9 +340,20 @@ def create_visualization():
     """Create interactive Plotly visualization for travel company revenue data"""
     print("Starting Plotly Travel Company Revenue Visualization.")
     
-    # Load the data from CSV
-    data = pd.read_csv('../99.utility/travel-company-bar-video/Animated Bubble Chart_ Historic Financials Online Travel Industry - Revenue2.csv')
-    print(f"Loaded {len(data)} rows of data.")
+    # Load the data from CSV - first try comma separator, then tab separator
+    try:
+        data = pd.read_csv('../99.utility/travel-company-bar-video/Animated Bubble Chart_ Historic Financials Online Travel Industry - Revenue2.csv')
+        print(f"Loaded {len(data)} rows of data using comma separator.")
+    except:
+        try:
+            data = pd.read_csv('../99.utility/travel-company-bar-video/Animated Bubble Chart_ Historic Financials Online Travel Industry - Revenue2.csv', 
+                              sep='\t', 
+                              engine='python',
+                              on_bad_lines='warn')
+            print(f"Loaded {len(data)} rows of data using tab separator.")
+        except Exception as e:
+            print(f"Error loading CSV file: {e}")
+            raise
     
     # Handle "Revenue" row
     if "Revenue" in data.iloc[0].values:
@@ -375,13 +384,19 @@ def create_visualization():
         # Convert values to numeric
         for col in quarter_data.index:
             if pd.notna(quarter_data[col]) and quarter_data[col] != '':
-                # Remove $, commas, and 'M' or 'B' indicators
-                value_str = str(quarter_data[col]).replace('$', '').replace(',', '').strip()
+                # 处理带引号和千分位的字符串，如"$2,148 "
+                value_str = str(quarter_data[col])
+                
+                # 移除$符号，保留逗号作为处理千分位
+                value_str = value_str.replace('$', '').replace(',', '').strip()
+                
                 if 'B' in value_str:
-                    # Convert billions to millions
-                    quarter_data[col] = float(value_str.replace('B', '')) * 1000
+                    # 转换十亿到百万
+                    value_str = value_str.replace('B', '')
+                    quarter_data[col] = float(value_str) * 1000
                 elif 'M' in value_str:
-                    quarter_data[col] = float(value_str.replace('M', ''))
+                    value_str = value_str.replace('M', '')
+                    quarter_data[col] = float(value_str)
                 else:
                     try:
                         quarter_data[col] = float(value_str)
@@ -592,8 +607,8 @@ def create_visualization():
             )
     )
     
-    # Add logos with consistent size and proper alignment
-    max_revenue = max([max([r for r in quarter_info['revenues'] if r > 0] or [1]) for quarter_info in all_quarters_data])
+    # 只使用初始帧的最大收入值初始化图表，允许动态发现
+    max_revenue = max([r for r in initial_data['revenues'] if r > 0] or [1])
     
     # 修改初始图表的logo显示位置，使其显示在revenue数字旁边
     for i, (company, revenue, logo, formatted_revenue) in enumerate(zip(
@@ -874,7 +889,7 @@ def create_visualization():
                         font: {{family: 'Monda', size: 16}}
                     }},
                     tickformat: "$,.0f",
-                    range: [0, Math.max(...initialData.revenues) * 1.5],
+                    range: [0, Math.max(...initialData.revenues.filter(r => r > 0)) * 1.5],
                     showgrid: true,
                     gridcolor: 'lightgrey',
                     gridwidth: 1,
@@ -958,8 +973,8 @@ def create_visualization():
             // 初始化图表
             Plotly.newPlot(chartDiv, traces, layout);
             
-            // 历史最大值记录
-            let historicalMaxRevenue = Math.max(...initialData.revenues);
+            // 历史最大值记录 - 仅使用初始数据中的最大值作为起点
+            let historicalMaxRevenue = Math.max(...initialData.revenues.filter(r => r > 0));
             
             // 平滑动画函数
             function playAnimation() {{

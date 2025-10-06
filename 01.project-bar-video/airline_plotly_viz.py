@@ -11,6 +11,8 @@ import plotly.io as pio
 from tqdm import tqdm
 import warnings
 import base64
+import webbrowser
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
 # Add argument parser
@@ -25,6 +27,7 @@ parser.add_argument('--width', type=int, default=1600,
                     help='Width of the visualization in pixels (default: 1600)')
 parser.add_argument('--max-airlines', type=int, default=15, 
                     help='Maximum number of airlines to display (default: 15)')
+# to change the overall duration, search for "const quarterDuration" instead -- set to 200 for a quick test
 parser.add_argument('--transition-duration', type=int, default=500, 
                     help='Transition duration between frames in ms (default: 500)')
 args = parser.parse_args()
@@ -47,6 +50,191 @@ region_colors = {
     'Turkey': '#DEB887'          # Burlywood (same as Middle East)
 }
 
+
+def get_logo_path(airline, year, iata_code, month=6):
+    """Get the appropriate logo path based on airline name, year and month"""
+    # Manually set the start year to 1997 for all airlines.
+    # It's just to cover the whole history. Usually the viz will start from 2000.
+
+    # Visit https://logos-world.net/ to find the logos
+    # Manually adjust to the same height if you need
+    logo_mapping = {
+        "easyJet": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/EasyJet-Logo-History-700x310.jpg"}],
+        "Emirates": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Emirates-Logo-History-700x302.jpg"}],
+        "Air France-KLM": [
+            {"start_year": 1997, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-1991-500x281.png", "iata": "KL"},
+            {"start_year": 2004, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2004-2009-500x281.png", "iata": "AF"},
+            {"start_year": 2009, "end_year": 2019, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2009-2019-500x281.png", "iata": "AF"},
+            {"start_year": 2019, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2019-present-500x281.jpg", "iata": "AF"} # have both KLM & Air France-KLM logos here
+        ],
+        # and also KLM & Air France-KLM separately
+        "KLM Royal Dutch": [
+            {"start_year": 1997, "end_year": 2011, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-1991-500x281.png"},
+            {"start_year": 2011, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-2011-500x281.jpg"}
+        ],
+        "Air France": [
+            {"start_year": 1997, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-1998-2009-700x394.jpg"},
+            {"start_year": 2009, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-2009-2016-700x394.jpg"},
+            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-2016-present-700x394.jpg"}
+        ],
+        "American Airlines": [
+            {"start_year": 1997, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/American-Airlines-Logo-1967-2013-700x394.png"},
+            {"start_year": 2013, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/American-Airlines-Logo-2013-present-700x394.jpg"}
+        ],
+        "British Airways": [
+            {"start_year": 1997, "end_year": 2008, "file": "../99.utility/airline-bar-video/logos/British-Airways-Logo-1997-500x281.png"},
+            {"start_year": 2008, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/British-Airways-Logo-500x281.jpg"}
+        ],
+        "United Airlines": [
+            {"start_year": 1997, "end_year": 2010, "file": "../99.utility/airline-bar-video/logos/United-Airlines-Logo-1998-2010-700x394.png"},
+            {"start_year": 2010, "end_year": 2019, "file": "../99.utility/airline-bar-video/logos/United-Airlines-Logo-2010-2019-700x394.png"},
+            {"start_year": 2019, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/United-Airlines-Logo-2019-present-700x394.jpg"}
+        ],
+        "Delta Air Lines": [
+            {"start_year": 1997, "end_year": 2007, "file": "../99.utility/airline-bar-video/logos/Delta-Air-Lines-Second-era-Logo-2000-2004-700x394.png"},
+            {"start_year": 2004, "end_year": 2007, "file": "../99.utility/airline-bar-video/logos/Delta-Air-Lines-Second-era-Logo-2004-2007-700x394.png"},
+            {"start_year": 2007, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Delta-Air-Lines-Second-era-Logo-2007-present-700x394.png"}
+        ],
+        "Southwest Airlines": [
+            {"start_year": 1989, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/Southwest-Airlines-Logo-1998-2014-700x394.png"},
+            {"start_year": 2014, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Southwest-Airlines-Logo-2014-present-700x394.jpg"}
+        ],
+        "Lufthansa": [
+            {"start_year": 1997, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/Lufthansa-Logo-1963-2018-700x394.png"},
+            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Lufthansa-Logo-2018-present-700x394.jpg"}
+        ],
+        "Deutsche Lufthansa": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/deutsche luft hansa.png"}
+        ],
+        "Air China": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-China-Logo-500x281.jpg"}],
+        "China Southern": [
+            {"start_year": 1997, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/China-Southern-Logo-1988-500x281.png"},
+            {"start_year": 2004, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/China-Southern-Logo-2004-500x281.png"},
+            {"start_year": 2007, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/China-Southern-Logo-2007-500x281.png"}
+        ],
+        "China Eastern": [
+            {"start_year": 1997, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/China-Eastern-Airlines-Logo-1988-500x281.png"},
+            {"start_year": 2014, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/China-Eastern-Airlines-Logo-2014-500x281.png"},
+            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/China-Eastern-Airlines-Logo-500x281.jpg"}
+        ],
+        "Singapore Airlines": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Singapore-Airlines-Logo-500x281.png"}],
+        "LATAM Airlines": [
+            {"start_year": 1997, "end_year": 2012, "file": "../99.utility/airline-bar-video/logos/LAN-Chile-Logo-1998-500x281.png"},
+            {"start_year": 2012, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/LATAM-Airlines-Group-Logo-2012-500x281.png"},
+            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/LATAM-Airlines-Logo-2016-500x281.jpg"}
+        ],
+        "Hainan Airlines": [
+            {"start_year": 1997, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/Hainan-Airlines-Logo-1993-500x281.png"},
+            {"start_year": 2004, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/Hainan-Airlines-Logo-2004-500x281.png"},
+            {"start_year": 2013, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Hainan-Airlines-Logo-2013-500x281.jpg"}
+        ],
+        "Qatar Airways": [
+            {"start_year": 1997, "end_year": 2006, "file": "../99.utility/airline-bar-video/logos/Qatar-Airways-Logo-1997-2006-700x394.png"},
+            {"start_year": 2006, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Qatar-Airways-Logo-2006-present-700x394.jpg"}
+        ],
+        "Turkish Airlines": [
+            {"start_year": 1997, "end_year": 2008, "file": "../99.utility/airline-bar-video/logos/Turkish-Airlines-Logo-1990-2008-700x394.png"},
+            {"start_year": 2008, "end_year": 2010, "file": "../99.utility/airline-bar-video/logos/Turkish-Airlines-Logo-2008-2010-700x394.jpg"},
+            {"start_year": 2010, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/Turkish-Airlines-Logo-2010-2017-700x394.png"},
+            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Turkish-Airlines-Logo-2018-present-700x394.jpg"}
+        ],
+        "JetBlue": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/JetBlue-Logo-500x281.jpg"}],
+        "SkyWest": [
+            {"start_year": 1972, "end_year": 2001, "file": "../99.utility/airline-bar-video/logos/SkyWest-Logo-1972-500x281.png"},
+            {"start_year": 2001, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/SkyWest-Logo-2001-500x281.png"},
+            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/SkyWest-Logo-2018-500x281.jpg"}
+        ],
+        "Northwest Airlines": [
+            {"start_year": 1997, "end_year": 2003, "file": "../99.utility/airline-bar-video/logos/Northwest-Airlines-Logo-1989-500x281.png"},
+            {"start_year": 2003, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Northwest-Airlines-Logo-2003-500x281.jpg"}
+        ],
+        "TWA": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Trans_World_Airlines.png"}],
+        "Air Canada": [
+            {"start_year": 1995, "end_year": 2005, "file": "../99.utility/airline-bar-video/logos/Air-Canada-Logo-1994-2005-700x394.png"},
+            {"start_year": 2005, "end_year": 2017, "file": "../99.utility/airline-bar-video/logos/Air-Canada-Logo-2005-2017-700x394.png"},
+            {"start_year": 2017, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-Canada-Logo-2017-present-700x394.png"}
+        ],
+        "IAG": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/International-Airlines-Group-Logo-500x281.jpg"}],
+        "Ryanair": [
+            {"start_year": 1997, "end_year": 2001, "file": "../99.utility/airline-bar-video/logos/Ryanair-Logo-1987-2001-700x394.png"},
+            {"start_year": 2001, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/Ryanair-Logo-2001-2013-700x394.png"},
+            {"start_year": 2013, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Ryanair-Logo-2013-present-700x394.jpg"}
+        ],
+        "Aeroflot": [
+            {"start_year": 1997, "end_year": 2000, "file": "../99.utility/airline-bar-video/logos/Aeroflot-Logo-1997-500x281.png"},
+            {"start_year": 2000, "end_year": 2003, "file": "../99.utility/airline-bar-video/logos/Aeroflot-Logo-2000-500x281.png"},
+            {"start_year": 2003, "end_year": 2005, "file": "../99.utility/airline-bar-video/logos/Aeroflot-Logo-2003-500x281.png"},
+            {"start_year": 2005, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Aeroflot-Logo-500x281.jpg"}
+        ],
+        "Cathay Pacific": [
+            {"start_year": 1997, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/Cathay-Pacific-Logo-1994-500x281.png"},
+            {"start_year": 2014, "end_year": 2023, "file": "../99.utility/airline-bar-video/logos/Cathay-Pacific-Logo-2014-500x281.png"}, 
+            {"start_year": 2023, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Cathay-Pacific-Logo-2023-500x281.jpg"}
+        ],
+        "Qantas Airways": [
+            {"start_year": 1997, "end_year": 2007, "file": "../99.utility/airline-bar-video/logos/Qantas-Logo-1984-500x281.png"},
+            {"start_year": 2007, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/Qantas-Logo-2007-500x281.png"}, 
+            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Qantas-Logo-500x281.jpg"}
+        ],
+        "Finnair": [
+            {"start_year": 1997, "end_year": 2000, "file": "../99.utility/airline-bar-video/logos/Finnair-Logo-1968-500x281.png"},
+            {"start_year": 2000, "end_year": 2010, "file": "../99.utility/airline-bar-video/logos/Finnair-Logo-2000-500x281.png"},
+            {"start_year": 2010, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Finnair-Logo-2010-500x281.jpg"}
+        ],
+        "Alaska Air": [
+            {"start_year": 1972, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/Alaska-Airlines-Logo-1990-2014-700x394.png"},
+            {"start_year": 2014, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/Alaska-Airlines-Logo-2014-2016-700x394.png"},
+            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Alaska-Airlines-Logo-2016-present-700x394.jpg"}
+        ],
+        "Norwegian": [
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Norwegian-Logo-New-500x281.png"}]
+    }
+    
+    # Handle Norwegian special case
+    if iata_code == "DY":
+        norwegian_logo = "../99.utility/airline-bar-video/logos/Norwegian-Logo-New-500x281.png"
+        return norwegian_logo if os.path.exists(norwegian_logo) else None
+        
+    if airline not in logo_mapping:
+        print(f"Company {airline} not found in logo mapping keys")
+        return None
+        
+    logo_versions = logo_mapping[airline]
+    
+    # Handle Air France-KLM special case
+    if airline == "Air France-KLM":
+        if year < 2004 or (year == 2004 and month < 5):
+            # Use KLM logo before May 2004
+            for version in logo_versions:
+                if version["iata"] == "KL":
+                    logo_path = version["file"]
+                    return logo_path if os.path.exists(logo_path) else None
+        else:
+            # Use Air France-KLM logo after May 2004
+            for version in logo_versions:
+                if version["iata"] == "AF":
+                    logo_path = version["file"]
+                    return logo_path if os.path.exists(logo_path) else None
+    
+    # Standard processing
+    for version in logo_versions:
+        if version["start_year"] <= year <= version["end_year"]:
+            logo_path = version["file"]
+            if os.path.exists(logo_path):
+                return logo_path
+            else:
+                print(f"Logo file not found: {logo_path} in {year} {month}")
+                return None
+    
+    return None
+
 def parse_quarter(quarter_str):
     """Parse quarter string into (year, quarter)"""
     year, quarter = quarter_str.split("'")
@@ -60,132 +248,78 @@ def format_revenue(value):
         return f'${value/1000:.1f}B'
     return f'${value:.0f}M'
 
-def get_logo_path(airline, year, iata_code, month=6):
-    """Get the appropriate logo path based on airline name, year and month"""
-    logo_mapping = {
-        "easyJet": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/easyJet-1999-now.jpg"}],
-        "Emirates": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Emirates-logo.jpg"}],
-        "Air France-KLM": [
-            {"start_year": 1999, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/klm-1999-now.png", "iata": "KL"},
-            {"start_year": 2004, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Holding-Logo.png", "iata": "AF"}
-        ],
-        "American Airlines": [
-            {"start_year": 1999, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/american-airlines-1967-2013.jpg"},
-            {"start_year": 2013, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/american-airlines-2013-now.jpg"}
-        ],
-        "United Airlines": [
-            {"start_year": 1998, "end_year": 2010, "file": "../99.utility/airline-bar-video/logos/united-airlines-1998-2010.jpg"},
-            {"start_year": 2010, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/united-airlines-2010-now.jpg"}
-        ],
-        "Delta Air Lines": [
-            {"start_year": 2000, "end_year": 2007, "file": "../99.utility/airline-bar-video/logos/delta-air-lines-2000-2007.png"},
-            {"start_year": 2007, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/delta-air-lines-2007-now.jpg"}
-        ],
-        "Southwest Airlines": [
-            {"start_year": 1989, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/southwest-airlines-1989-2014.png"},
-            {"start_year": 2014, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/southwest-airlines-2014-now.png"}
-        ],
-        "Lufthansa": [
-            {"start_year": 1999, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/Deutsche Lufthansa-1999-2018.png"},
-            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Deutsche Lufthansa-2018-now.jpg"}
-        ],
-        "Deutsche Lufthansa": [
-            {"start_year": 1999, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/Deutsche Lufthansa-1999-2018.png"},
-            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Deutsche Lufthansa-2018-now.jpg"}
-        ],
-        "Air China": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air China-1999-now.png"}],
-        "China Southern": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/China Southern-1999-now.jpg"}],
-        "China Eastern": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/China Eastern-1999-now.jpg"}],
-        "Singapore Airlines": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Singapore Airlines-1999-now.jpg"}],
-        "LATAM Airlines": [
-            {"start_year": 1999, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/LATAM Airlines-1999-2016.png"},
-            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/LATAM Airlines-2016-now.jpg"}
-        ],
-        "Hainan Airlines": [
-            {"start_year": 1999, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/Hainan Airlines-1999-2004.png"},
-            {"start_year": 2004, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Hainan Airlines-2004-now.jpg"}
-        ],
-        "Qatar Airways": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Qatar Airways-1999-now.jpg"}],
-        "Turkish Airlines": [
-            {"start_year": 1999, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/Turkish Airlines-1999-2018.png"},
-            {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Turkish Airlines-2018-now.png"}
-        ],
-        "JetBlue": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/jetBlue-1999-now.jpg"}],
-        "SkyWest": [
-            {"start_year": 1972, "end_year": 2001, "file": "../99.utility/airline-bar-video/logos/skywest-1972-2001.png"},
-            {"start_year": 2001, "end_year": 2008, "file": "../99.utility/airline-bar-video/logos/skywest-2001-2008.png"},
-            {"start_year": 2008, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/skywest-2018-now.jpg"}
-        ],
-        "Northwest Airlines": [
-            {"start_year": 1989, "end_year": 2003, "file": "../99.utility/airline-bar-video/logos/northwest-airlines-1989-2003.png"},
-            {"start_year": 2003, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/northwest-airlines-2003-now.jpg"}
-        ],
-        "TWA": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/TWA-1999-now.png"}],
-        "Air Canada": [
-            {"start_year": 1995, "end_year": 2005, "file": "../99.utility/airline-bar-video/logos/air-canada-1995-2005.jpg"},
-            {"start_year": 2005, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/air-canada-2005-now.png"}
-        ],
-        "IAG": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/IAG-1999-now.png"}],
-        "Ryanair": [
-            {"start_year": 1999, "end_year": 2001, "file": "../99.utility/airline-bar-video/logos/Ryanair-1999-2001.png"},
-            {"start_year": 2001, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/Ryanair-2001-2013.jpg"},
-            {"start_year": 2013, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Ryanair-2013-now.jpg"}
-        ],
-        "Aeroflot": [
-            {"start_year": 1999, "end_year": 2003, "file": "../99.utility/airline-bar-video/logos/Aeroflot-1999-2003.jpg"},
-            {"start_year": 2003, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Aeroflot-2003-now.jpg"}
-        ],
-        "Cathay Pacific": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Cathay Pacific-1999-now.png"}],
-        "Qantas Airways": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Qantas Airways-1999-now.jpg"}],
-        "Finnair": [
-            {"start_year": 1999, "end_year": 2010, "file": "../99.utility/airline-bar-video/logos/Finnair-1999-2010.jpg"},
-            {"start_year": 2010, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Finnair-2010-now.jpg"}
-        ],
-        "Alaska Air": [
-            {"start_year": 1972, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/alaska-air-1972-2014.png"},
-            {"start_year": 2014, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/alaska-air-2014-2016.png"},
-            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/alaska-air-2016-now.jpg"}
-        ],
-        "Norwegian": [{"start_year": 1999, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/norwegian-logo.jpg"}]
-    }
+def interpolate_quarterly_data(revenue_data):
+    """
+    Detect if quarterly data within the same year is identical, and perform interpolation if so.
+    This allows data to smoothly transition from previous year Q4 to current year Q4.
+    """
+    # Get all quarters
+    quarters = revenue_data.index.tolist()
     
-    # 处理Norwegian特殊情况
-    if iata_code == "DY":
-        norwegian_logo = "../99.utility/airline-bar-video/logos/norwegian-logo.jpg"
-        return norwegian_logo if os.path.exists(norwegian_logo) else None
+    # Group by year
+    years_data = {}
+    for quarter in quarters:
+        year, q = parse_quarter(quarter)
+        if year not in years_data:
+            years_data[year] = []
+        years_data[year].append((quarter, q))
+    
+    # Sort quarters within each year
+    for year in years_data:
+        years_data[year].sort(key=lambda x: x[1])
+    
+    # Detect years that need interpolation
+    interpolated_data = revenue_data.copy()
+    interpolation_count = 0
+    
+    for year in sorted(years_data.keys()):
+        quarters_in_year = years_data[year]
         
-    if airline not in logo_mapping:
-        print(f"Logo not found for {airline}")
-        return None
-        
-    logo_versions = logo_mapping[airline]
-    
-    # 处理Air France-KLM特殊情况
-    if airline == "Air France-KLM":
-        if year < 2004 or (year == 2004 and month < 5):
-            # 在2004年5月之前使用KLM的logo
-            for version in logo_versions:
-                if version["iata"] == "KL":
-                    logo_path = version["file"]
-                    return logo_path if os.path.exists(logo_path) else None
-        else:
-            # 2004年5月之后使用Air France-KLM的logo
-            for version in logo_versions:
-                if version["iata"] == "AF":
-                    logo_path = version["file"]
-                    return logo_path if os.path.exists(logo_path) else None
-    
-    # 标准处理方式
-    for version in logo_versions:
-        if version["start_year"] <= year <= version["end_year"]:
-            logo_path = version["file"]
-            if os.path.exists(logo_path):
-                return logo_path
-            else:
-                print(f"Logo file not found: {logo_path}")
-                return None
-    
-    return None
+        # Check if there are complete 4 quarters
+        if len(quarters_in_year) == 4:
+            # Check if all 4 quarters have identical data
+            q1_data = interpolated_data.loc[quarters_in_year[0][0]]
+            q2_data = interpolated_data.loc[quarters_in_year[1][0]]
+            q3_data = interpolated_data.loc[quarters_in_year[2][0]]
+            q4_data = interpolated_data.loc[quarters_in_year[3][0]]
+            
+            # Check if all airlines have identical data across quarters
+            all_same = True
+            for airline in interpolated_data.columns:
+                if not (q1_data[airline] == q2_data[airline] == q3_data[airline] == q4_data[airline]):
+                    all_same = False
+                    break
+            
+            if all_same:
+                # print(f"Detected identical quarterly data for {year}, starting interpolation...")
+                interpolation_count += 1
+                
+                # Get previous year Q4 data (if exists)
+                prev_year = year - 1
+                prev_q4_quarter = f"{prev_year}'Q4"
+                
+                if prev_q4_quarter in interpolated_data.index:
+                    prev_q4_data = interpolated_data.loc[prev_q4_quarter]
+                    
+                    # Perform interpolation for each airline
+                    for airline in interpolated_data.columns:
+                        prev_value = prev_q4_data[airline]
+                        current_value = q4_data[airline]
+                        
+                        # Calculate interpolation
+                        q1_interpolated = prev_value + (current_value - prev_value) * 0.25
+                        q2_interpolated = prev_value + (current_value - prev_value) * 0.5
+                        q3_interpolated = prev_value + (current_value - prev_value) * 0.75
+                        
+                        # Update data
+                        interpolated_data.loc[quarters_in_year[0][0], airline] = q1_interpolated
+                        interpolated_data.loc[quarters_in_year[1][0], airline] = q2_interpolated
+                        interpolated_data.loc[quarters_in_year[2][0], airline] = q3_interpolated
+                        # Keep Q4 original value
+                        interpolated_data.loc[quarters_in_year[3][0], airline] = current_value
+                    
+    return interpolated_data
+
 
 def get_encoded_image(logo_path):
     """Convert image to base64 string for HTML embedding"""
@@ -198,6 +332,7 @@ def get_encoded_image(logo_path):
         print(f"Error encoding image {logo_path}: {e}")
     return None
 
+
 def create_visualization():
     """Create interactive Plotly visualization for airline revenue data"""
     # Load the data from CSV
@@ -205,27 +340,80 @@ def create_visualization():
     
     # Process metadata
     metadata = df.iloc[:7].copy()
-    revenue_data = df.iloc[7:].copy()
+    
+    # Find EBITDA row to separate revenue data from EBITDA data
+    EBITDA_row = None
+    for i in range(7, len(df)):
+        if str(df.iloc[i, 0]).strip() == 'EBITDA':
+            EBITDA_row = i
+            break
+    
+    # Extract only revenue data (from row 7 to EBITDA row)
+    if EBITDA_row is not None:
+        revenue_data = df.iloc[7:EBITDA_row].copy()
+    else:
+        revenue_data = df.iloc[7:].copy()
     
     metadata.set_index(metadata.columns[0], inplace=True)
+
+    # print("before\n", revenue_data)
     
     # Convert revenue columns
     for col in revenue_data.columns[1:]:
-        revenue_data[col] = pd.to_numeric(revenue_data[col].str.replace(',', '').str.replace(' M', ''), errors='coerce')
+        revenue_data[col] = pd.to_numeric(revenue_data[col].str.replace(r'[,\s"$ ]', '', regex=True), errors='coerce')
+    
+    # Remove empty rows from the end (excluding the quarter indicator column)
+    # Check from the last row backwards until we find a row with data
+    quarter_col = revenue_data.columns[0]  # First column is the quarter indicator
+    data_cols = revenue_data.columns[1:]   # All other columns are data columns
+    
+    # Start from the last row and work backwards
+    for i in range(len(revenue_data) - 1, -1, -1):
+        # Check if all data columns (excluding quarter column) are NaN or empty
+        row_data = revenue_data.iloc[i][data_cols]
+        if row_data.isna().all() or (row_data == 0).all():
+            # This row has no data, remove it
+            revenue_data = revenue_data.drop(revenue_data.index[i])
+        else:
+            # Found a row with data, stop removing rows
+            break
     
     revenue_data.set_index(revenue_data.columns[0], inplace=True)
-    quarters = revenue_data.index.tolist()
+    revenue_data.fillna(0,inplace=True)
     
-    # 准备所有季度的数据
+    # Apply interpolation processing
+    revenue_data = interpolate_quarterly_data(revenue_data)
+    
+    # Convert quarterly data to annual revenue (rolling 4-quarter sum)
+    # This means each quarter shows the sum of current quarter + previous 3 quarters
+    annual_revenue_data = revenue_data.copy()
+    
+    # Calculate rolling 4-quarter sum for each airline
+    for airline in revenue_data.columns:
+        annual_revenue_data[airline] = revenue_data[airline].rolling(window=4, min_periods=4).sum()
+    
+    # Remove rows where we don't have 4 quarters of data (i.e., 1997 and early 1998)
+    # Keep only rows where all airlines have valid annual data
+    annual_revenue_data = annual_revenue_data.dropna()
+    
+    # print("after\n", annual_revenue_data)
+    annual_revenue_data.to_csv("output/revenue_data.csv", index=True)
+    quarters = annual_revenue_data.index.tolist()
+    
+    # Prepare all quarterly data
     all_quarters_data = []
     
     # Process each quarter
     for quarter in tqdm(quarters, desc="Processing data"):
+        if quarter is np.nan:
+            continue
+        
         year, q = parse_quarter(quarter)
         month = q * 3
         
-        quarter_data = revenue_data.loc[quarter].dropna()
+        quarter_data = annual_revenue_data.loc[quarter].dropna()
         top_airlines = quarter_data.sort_values(ascending=False).head(args.max_airlines)
+        # print(quarter, quarter_data, top_airlines)
         
         airlines = []
         revenues = []
@@ -337,7 +525,7 @@ def create_visualization():
         )
 
     # Add logos with consistent size and proper alignment
-    max_revenue = revenue_data.max().max()
+    max_revenue = annual_revenue_data.max().max()
     global_x_offset = max_revenue * 1.05
     fixed_logo_width = max_revenue * 0.2
     
@@ -359,8 +547,8 @@ def create_visualization():
                 )
             )
 
-    # 调整x轴以容纳logo
-    x_axis_range = [0, max_revenue * 1.5]  # 确保图表有足够空间显示logo
+    # Adjust x-axis to accommodate logos
+    x_axis_range = [0, max_revenue * 1.5]  # Ensure chart has enough space for logos
 
     # Update layout with numerical yaxis
     fig.update_layout(
@@ -674,7 +862,7 @@ def create_visualization():
                 
                 let lastFrameTime = performance.now();
                 const frameDuration = 16;
-                const quarterDuration = 5000;
+                const quarterDuration = 200;
                 let currentTime = 0;
                 
                 function animate() {{
@@ -836,7 +1024,7 @@ def create_visualization():
     # Save HTML file
     with open(args.output, 'w') as f:
         f.write(custom_html)
-    
+    webbrowser.open('file://' + str(Path(args.output).resolve()), new=2)
     print(f"Visualization saved successfully to {args.output}")
     
     return fig
