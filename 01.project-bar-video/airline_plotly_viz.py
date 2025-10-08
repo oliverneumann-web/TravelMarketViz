@@ -645,7 +645,7 @@ def create_visualization():
             gridcolor='lightgrey',
             gridwidth=3,
             griddash='dot',
-            tickfont={'family': 'Monda', 'size': 14}
+            tickfont={'family': 'Monda', 'size': 16}
         ),
         yaxis=dict(
             title={
@@ -655,14 +655,14 @@ def create_visualization():
             tickmode='array',
             tickvals=initial_data['y_positions'],
             ticktext=initial_data['airlines'],
-            tickfont={'family': 'Monda', 'size': 14},
+            tickfont={'family': 'Monda', 'size': 16},
             fixedrange=True,
             autorange='reversed'
         ),
         plot_bgcolor='white',
         paper_bgcolor='white',
         hovermode="closest",
-        font=dict(family="Monda", size=14),
+        font=dict(family="Monda", size=16),
         margin=dict(l=100, r=150, t=100, b=140),
         showlegend=True,
         legend=dict(
@@ -816,7 +816,7 @@ def create_visualization():
                     textposition: 'outside',
                     textfont: {{
                         family: 'Monda',
-                        size: 14,
+                        size: 16,
                         color: 'black'
                     }},
                     cliponaxis: false,
@@ -878,7 +878,7 @@ def create_visualization():
                     gridcolor: 'lightgrey',
                     gridwidth: 3,
                     griddash: 'dot',
-                    tickfont: {{family: 'Monda', size: 14}}
+                    tickfont: {{family: 'Monda', size: 16}}
                 }},
                 yaxis: {{
                     title: {{
@@ -888,13 +888,13 @@ def create_visualization():
                     tickmode: 'array',
                     tickvals: initialData.y_positions,
                     ticktext: initialData.airlines,
-                    tickfont: {{family: 'Monda', size: 14}},
+                    tickfont: {{family: 'Monda', size: 16}},
                     autorange: 'reversed'
                 }},
                 plot_bgcolor: 'white',
                 paper_bgcolor: 'white',
                 hovermode: "closest",
-                font: {{family: "Monda", size: 14}},
+                font: {{family: "Monda", size: 16}},
                 margin: {{l: 100, r: 150, t: 100, b: 140}},
                 showlegend: true,
                 legend: {{
