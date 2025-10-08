@@ -2,19 +2,25 @@
 let isPlaying = true;
 let playInterval;
 let currentYearIndex = 0;
-let years = Array.from({length: 2026 - 2010 + 1}, (_, i) => 2010 + i);
+// Timeline years for animation: 2000..2025 plus Q1/Q2 of 2025 as fractional years
+// Use integer years for axis ticks; append 2025.25 (Q1) and 2025.5 (Q2) for animation range end
+let years = Array.from({length: 2025 - 2000 + 1}, (_, i) => 2000 + i).concat([2025.25, 2025.5]);
+let tickYears = Array.from({length: 2025 - 2000 + 1}, (_, i) => 2000 + i);
 let timeline;
+// Scale factor to shorten the overall timeline width for recording
+const TIMELINE_WIDTH_SCALE = 0.9; // tweak between 0.7 ~ 1.0 as needed
 
 // Function to create timeline
 function createTimeline() {
     const timelineWidth = document.getElementById('timeline').offsetWidth;
-    const margin = { left: 80, right: 80 };
-    const width = timelineWidth - margin.left - margin.right;
+    const timelineWidthScaled = Math.max(600, Math.floor(timelineWidth * TIMELINE_WIDTH_SCALE));
+    const margin = { left: 20, right: 80 };
+    const width = timelineWidthScaled - margin.left - margin.right;
 
     // Create SVG
     const svg = d3.select('#timeline')
         .append('svg')
-        .attr('width', timelineWidth)
+        .attr('width', timelineWidthScaled)
         .attr('height', 60);
 
     const g = svg.append('g')
@@ -22,14 +28,14 @@ function createTimeline() {
 
     // Create scale
     const xScale = d3.scaleLinear()
-        .domain([2010, 2026])
+        .domain([2000, 2025.5]) // extend to 2025 Q2
         .range([0, width]);
 
     // Create axis
     const xAxis = d3.axisBottom(xScale)
         .tickFormat(d => d.toString())
-        .ticks(years.length)
-        .tickValues(years);
+        .ticks(tickYears.length)
+        .tickValues(tickYears);
 
     // Add axis
     g.append('g')
@@ -40,11 +46,39 @@ function createTimeline() {
         .style('font-family', 'Monda')
         .style('font-size', '18px');
 
-    // Make timeline ticks more visible
+    // Make timeline ticks more visible (year ticks)
     g.selectAll('.tick line')
         .style('stroke', '#ccc')
         .style('stroke-width', '1px')
         .attr('y2', '8');
+
+    // Only keep short quarter ticks for 2025 Q1/Q2 (Q1 without label, Q2 with small label)
+    const quarterPositions = [];
+    quarterPositions.push({ pos: 2025.25, label: null });
+    quarterPositions.push({ pos: 2025.5,  label: 'Q2' });
+
+    const qGroup = g.append('g').attr('class', 'quarter-ticks');
+    quarterPositions.forEach(q => {
+        const x = xScale(q.pos);
+        // short tick line (shorter than year tick)
+        qGroup.append('line')
+            .attr('x1', x)
+            .attr('x2', x)
+            .attr('y1', 0)
+            .attr('y2', 5)
+            .attr('stroke', '#ccc')
+            .attr('stroke-width', 1);
+        if (q.label) {
+            qGroup.append('text')
+                .attr('x', x)
+                .attr('y', 18)
+                .attr('text-anchor', 'middle')
+                .style('font-family', 'Monda')
+                .style('font-size', '12px')
+                .style('fill', '#888')
+                .text(q.label);
+        }
+    });
 
     // Add triangle marker
     const triangle = g.append('path')
@@ -78,7 +112,7 @@ function init() {
         setTimeout(() => {
             isPlaying = true;
             let startTime = null;
-            const animationDuration = 335500; // Adjusted: 27 years, keep per-year speed same as before
+            const animationDuration = 335500; // Keep per-year speed; range now 2000..2025.5
             const frameInterval = 50; // Limit updates to every 50ms (20fps)
             let lastUpdateTime = 0;
             

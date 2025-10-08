@@ -6,6 +6,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 from PIL import Image
+from PIL import ImageChops
+import io
 import plotly.express as px
 import plotly.io as pio
 from tqdm import tqdm
@@ -78,6 +80,18 @@ def get_logo_path(airline, year, iata_code, month=6):
             {"start_year": 1997, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-1998-2009-700x394.jpg"},
             {"start_year": 2009, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-2009-2016-700x394.jpg"},
             {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-2016-present-700x394.jpg"}
+        ],
+        "ANA Holdings": [
+            {"start_year": 1986, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/All-Nippon-Airways-Logo.jpg"}
+        ],
+        "Japan Airlines": [
+            {"start_year": 1989, "end_year": 2002, "file": "../99.utility/airline-bar-video/logos/Japan-Airlines-Logo-1989-500x281.png"},
+            {"start_year": 2002, "end_year": 2011, "file": "../99.utility/airline-bar-video/logos/Japan-Airlines-Logo-2002-500x281.png"},
+            {"start_year": 2011, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Japan-Airlines-Logo-500x281.jpg"}
+        ],
+        "Korean Air": [
+            {"start_year": 1984, "end_year": 2025, "file": "../99.utility/airline-bar-video/logos/Korean-Air-Logo-1984-500x281.png"},
+            {"start_year": 2025, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Korean-Air-Logo-500x281.jpg"}
         ],
         "American Airlines": [
             {"start_year": 1997, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/American-Airlines-Logo-1967-2013-700x394.png"},
@@ -321,16 +335,58 @@ def interpolate_quarterly_data(revenue_data):
     return interpolated_data
 
 
-def get_encoded_image(logo_path):
-    """Convert image to base64 string for HTML embedding"""
+def get_encoded_image(logo_path, airline_name=None):
+    """Load image, trim whitespace, resize to fixed height, and return base64 data URL.
+
+    This ensures logos在可视化中高度一致，宽度按比例缩放。
+    """
+    # 特别处理Emirates的logo高度
+    if airline_name == "Emirates":
+        TARGET_HEIGHT_PX = 150  # Emirates特殊高度
+    else:
+        TARGET_HEIGHT_PX = 40  # 其他航空公司统一高度
+
+    def trim_whitespace(img: Image.Image) -> Image.Image:
+        # 将非透明背景/白色边缘裁剪掉
+        if img.mode in ("RGBA", "LA"):
+            # 依据alpha生成mask做裁剪
+            alpha = img.split()[-1]
+            bbox = alpha.getbbox()
+            if bbox:
+                return img.crop(bbox)
+            return img
+        # 非透明图：用白色背景做差分裁剪
+        bg = Image.new(img.mode, img.size, img.getpixel((0, 0)))
+        diff = ImageChops.difference(img, bg)
+        bbox = diff.getbbox()
+        if bbox:
+            return img.crop(bbox)
+        return img
+
     try:
-        if logo_path and os.path.exists(logo_path):
-            with open(logo_path, "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode()
-                return f"data:image/png;base64,{encoded_string}"
+        if not logo_path or not os.path.exists(logo_path):
+            return None
+
+        img = Image.open(logo_path).convert("RGBA")
+        img = trim_whitespace(img)
+
+        # 等比例缩放到固定高度
+        w, h = img.size
+        if h <= 0:
+            return None
+        scale = TARGET_HEIGHT_PX / float(h)
+        new_w = max(1, int(round(w * scale)))
+        img = img.resize((new_w, TARGET_HEIGHT_PX), Image.LANCZOS)
+        aspect_ratio = new_w / float(TARGET_HEIGHT_PX)
+
+        # 输出为PNG字节并base64
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        encoded_string = base64.b64encode(buffer.getvalue()).decode()
+        return f"data:image/png;base64,{encoded_string}", aspect_ratio
     except Exception as e:
-        print(f"Error encoding image {logo_path}: {e}")
-    return None
+        print(f"Error processing image {logo_path}: {e}")
+        return None
 
 
 def create_visualization():
@@ -420,6 +476,7 @@ def create_visualization():
         colors = []
         hover_texts = []
         logos = []
+        logo_aspect_ratios = []
         y_positions = []  # Add numerical y positions
         
         # Create lists for each airline's data
@@ -440,12 +497,20 @@ def create_visualization():
                 
                 # Get logo path and encode it
                 logo_path = get_logo_path(airline, year, iata_code, month)
-                encoded_logo = get_encoded_image(logo_path) if logo_path else None
+                encoded_logo = None
+                aspect_ratio = None
+                if logo_path:
+                    result = get_encoded_image(logo_path, airline)
+                    if isinstance(result, tuple):
+                        encoded_logo, aspect_ratio = result
+                    else:
+                        encoded_logo = result
                 
                 airlines.append(label)
                 revenues.append(revenue)
                 colors.append(color)
                 logos.append(encoded_logo)
+                logo_aspect_ratios.append(aspect_ratio)
                 y_positions.append(i)  # Use numerical position
                 
                 hover_text = f"<b>{airline}</b><br>"
@@ -463,6 +528,7 @@ def create_visualization():
             'hover_texts': hover_texts,
             'formatted_revenues': [format_revenue(rev) for rev in revenues],
             'logos': logos,
+            'logo_aspect_ratios': logo_aspect_ratios,
             'y_positions': y_positions  # Add y_positions to the data
         }
         all_quarters_data.append(quarter_info)
@@ -529,8 +595,14 @@ def create_visualization():
     global_x_offset = max_revenue * 1.05
     fixed_logo_width = max_revenue * 0.2
     
-    for i, (airline, revenue, logo) in enumerate(zip(initial_data['airlines'], initial_data['revenues'], initial_data['logos'])):
+    for i, (airline, revenue, logo, aspect_ratio) in enumerate(zip(initial_data['airlines'], initial_data['revenues'], initial_data['logos'], initial_data['logo_aspect_ratios'])):
         if logo:
+            # Calculate dynamic sizey based on airline
+            if airline == "EK":  # Emirates IATA code
+                logo_sizey = 1.2  # Larger for Emirates
+            else:
+                logo_sizey = 0.6  # Smaller for others
+                
             fig.add_layout_image(
                 dict(
                     source=logo,
@@ -539,7 +611,7 @@ def create_visualization():
                     x=global_x_offset,
                     y=i - 0.05,  # Add small offset for logo
                     sizex=fixed_logo_width,
-                    sizey=0.8,
+                    sizey=logo_sizey,
                     xanchor="left",
                     yanchor="middle",
                     sizing="contain",
@@ -835,21 +907,30 @@ def create_visualization():
                     xanchor: "left",
                     x: 0.1
                 }},
-                images: initialData.logos.map((logo, i) => 
-                    logo ? {{
-                        source: logo,
-                        xref: "x",
-                        yref: "y",
-                        x: initialData.revenues[0] * 1.05,
-                        y: i,
-                        sizex: initialData.revenues[0] * 0.2,
-                        sizey: 0.8,
-                        xanchor: "left",
-                        yanchor: "middle",
-                        sizing: "contain",
-                        opacity: 0.95
-                    }} : null
-                ).filter(img => img !== null)
+                images: (() => {{
+                    const xAxisMax = Math.max(...initialData.revenues) * 1.5;
+                    const baseLogoWidth = xAxisMax * 0.1; // base width proportional to axis range
+                    return initialData.logos.map((logo, i) => {{
+                        if (!logo) return null;
+                        
+                        // Calculate dynamic sizey based on airline
+                        const logoSizey = initialData.airlines[i] === "EK" ? 1.2 : 0.6;
+                        
+                        return {{
+                            source: logo,
+                            xref: "x",
+                            yref: "y",
+                            x: initialData.revenues[i] + xAxisMax * 0.08,
+                            y: i - 0.05,
+                            sizex: baseLogoWidth * (initialData.logo_aspect_ratios && initialData.logo_aspect_ratios[i] ? initialData.logo_aspect_ratios[i] : 1.6),
+                            sizey: logoSizey,
+                            xanchor: "left",
+                            yanchor: "middle",
+                            sizing: "contain",
+                            opacity: 0.95
+                        }};
+                    }}).filter(img => img !== null)
+                }})()
             }};
             
             await Plotly.newPlot(chartDiv, traces, layout);
@@ -862,7 +943,7 @@ def create_visualization():
                 
                 let lastFrameTime = performance.now();
                 const frameDuration = 16;
-                const quarterDuration = 200;
+                const quarterDuration = 5000;
                 let currentTime = 0;
                 
                 function animate() {{
@@ -890,6 +971,7 @@ def create_visualization():
                         airline: currentData.airlines[i],
                         revenue: startVal + (nextData.revenues[i] - startVal) * progress,
                         logo: currentData.logos[i],
+                        aspectRatio: currentData.logo_aspect_ratios ? currentData.logo_aspect_ratios[i] : null,
                         color: currentData.colors[i],
                         formattedRevenue: formatRevenue(startVal + (nextData.revenues[i] - startVal) * progress),
                         y_position: i
@@ -903,6 +985,7 @@ def create_visualization():
                     const colorsSorted = interpolatedData.map(d => d.color);
                     const formattedRevenuesSorted = interpolatedData.map(d => d.formattedRevenue);
                     const yPositionsSorted = interpolatedData.map((d, i) => i);
+                    const aspectRatiosSorted = interpolatedData.map(d => d.aspectRatio);
                     
                     const currentMaxRevenue = Math.max(...revenuesSorted);
                     historicalMaxRevenue = Math.max(historicalMaxRevenue, currentMaxRevenue);
@@ -923,21 +1006,26 @@ def create_visualization():
                             'yaxis.tickvals': yPositionsSorted,
                             'yaxis.autorange': 'reversed',
                             'xaxis.range': [0, xAxisMax],
-                            'images': logosSorted.map((logo, i) => 
-                                logo ? {{
+                            'images': logosSorted.map((logo, i) => {{
+                                if (!logo) return null;
+                                
+                                // Calculate dynamic sizey based on airline
+                                const logoSizey = airlinesSorted[i] === "EK" ? 1.2 : 0.6;
+                                
+                                return {{
                                     source: logo,
                                     xref: "x",
                                     yref: "y",
                                     x: revenuesSorted[i] + xAxisMax * 0.08,
                                     y: i - 0.05,  // Add offset for logo
-                                    sizex: fixedLogoWidth * 0.7,
-                                    sizey: 0.8,
+                                    sizex: ((historicalMaxRevenue * 1.5) * 0.1) * (aspectRatiosSorted && aspectRatiosSorted[i] ? aspectRatiosSorted[i] : 1.6),
+                                    sizey: logoSizey,
                                     xanchor: "left",
                                     yanchor: "middle",
                                     sizing: "contain",
                                     opacity: 0.95
-                                }} : null
-                            ).filter(img => img !== null)
+                                }};
+                            }}).filter(img => img !== null)
                         }});
                         
                         const quarterText = interpolateQuarters(currentData.quarter, nextData.quarter, progress);

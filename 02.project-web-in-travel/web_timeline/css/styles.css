@@ -6,7 +6,7 @@ body {
 }
 
 .container {
-    max-width: 2800px;
+    max-width: 2700px;
     margin: 0 auto;
     background-color: white;
     padding: 100px 20px 40px 20px;
@@ -33,7 +33,7 @@ h1 {
 }
 
 #timeline {
-    width: 110%;
+    width: 100%;
     height: 60px;
     position: relative;
     margin: 0 auto;
@@ -47,7 +47,7 @@ h1 {
 
 #timeline .timeline-axis text {
     fill: #666;
-    font-size: 20px;
+    font-size: 18px;
     font-family: 'Monda', sans-serif;
     transform: translateY(8px);
 }
