@@ -23,9 +23,9 @@ parser.add_argument('--output', type=str, default='output/airline_revenue_plotly
                     help='Output HTML file path')
 parser.add_argument('--frames-per-year', type=int, default=4, 
                     help='Number of frames to generate per year (default: 4 for quarterly)')
-parser.add_argument('--height', type=int, default=800, 
+parser.add_argument('--height', type=int, default=1000, 
                     help='Height of the visualization in pixels (default: 800)')
-parser.add_argument('--width', type=int, default=1600, 
+parser.add_argument('--width', type=int, default=1200, 
                     help='Width of the visualization in pixels (default: 1600)')
 parser.add_argument('--max-airlines', type=int, default=15, 
                     help='Maximum number of airlines to display (default: 15)')
@@ -643,7 +643,7 @@ def create_visualization():
             range=x_axis_range,
             showgrid=True,
             gridcolor='lightgrey',
-            gridwidth=1,
+            gridwidth=3,
             griddash='dot',
             tickfont={'family': 'Monda', 'size': 14}
         ),
@@ -876,7 +876,7 @@ def create_visualization():
                     range: [0, Math.max(...initialData.revenues) * 1.5],
                     showgrid: true,
                     gridcolor: 'lightgrey',
-                    gridwidth: 1,
+                    gridwidth: 3,
                     griddash: 'dot',
                     tickfont: {{family: 'Monda', size: 14}}
                 }},
@@ -943,7 +943,7 @@ def create_visualization():
                 
                 let lastFrameTime = performance.now();
                 const frameDuration = 16;
-                const quarterDuration = 5000;
+                const quarterDuration = 3000;
                 let currentTime = 0;
                 
                 function animate() {{
