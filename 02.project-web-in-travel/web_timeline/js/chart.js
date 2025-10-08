@@ -112,8 +112,8 @@ function init() {
         setTimeout(() => {
             isPlaying = true;
             let startTime = null;
-            const animationDuration = 335500; // Keep per-year speed; range now 2000..2025.5
-            const frameInterval = 50; // Limit updates to every 50ms (20fps)
+            const animationDuration = 300000; // 缩短到30秒
+            const frameInterval = 16; // 提高帧率到60fps (16.67ms间隔)
             let lastUpdateTime = 0;
             
             function animate(currentTime) {
@@ -130,18 +130,16 @@ function init() {
                 
                 const elapsed = (now - startTime) % animationDuration;
                 const progress = elapsed / animationDuration;
-                const indexFloat = progress * (years.length - 1);
-                const currentIndex = Math.floor(indexFloat);
+                
+                // 计算当前年份位置，让2025.25和2025.5也均匀分布
+                // 将进度映射到2000-2025.5的完整范围
+                const totalRange = 2025.5 - 2000; // 25.5年
+                const currentYear = 2000 + progress * totalRange;
                 
                 // Update timeline marker
                 if (timeline && timeline.triangle) {
-                    const currentYear = years[currentIndex];
-                    const nextYear = years[Math.min(currentIndex + 1, years.length - 1)];
-                    const yearProgress = indexFloat - currentIndex;
                     const currentX = timeline.scale(currentYear);
-                    const nextX = timeline.scale(nextYear);
-                    const interpolatedX = currentX + (nextX - currentX) * yearProgress;
-                    timeline.triangle.attr('transform', `translate(${interpolatedX}, -10) rotate(180)`);
+                    timeline.triangle.attr('transform', `translate(${currentX}, -10) rotate(180)`);
                 }
                 
                 lastUpdateTime = now;
