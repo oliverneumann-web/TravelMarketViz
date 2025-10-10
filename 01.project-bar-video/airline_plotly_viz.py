@@ -23,9 +23,9 @@ parser.add_argument('--output', type=str, default='output/airline_revenue_plotly
                     help='Output HTML file path')
 parser.add_argument('--frames-per-year', type=int, default=4, 
                     help='Number of frames to generate per year (default: 4 for quarterly)')
-parser.add_argument('--height', type=int, default=1000, 
+parser.add_argument('--height', type=int, default=900, 
                     help='Height of the visualization in pixels (default: 800)')
-parser.add_argument('--width', type=int, default=1200, 
+parser.add_argument('--width', type=int, default=1500, 
                     help='Width of the visualization in pixels (default: 1600)')
 parser.add_argument('--max-airlines', type=int, default=15, 
                     help='Maximum number of airlines to display (default: 15)')
@@ -52,34 +52,40 @@ region_colors = {
     'Turkey': '#DEB887'          # Burlywood (same as Middle East)
 }
 
+# Logo size mapping for airlines - adjust sizes for visual balance
+# Larger sizes for logos with smaller text or vertical layout designs
+# Note that it will affect all logos of each selected airline -- be careful of logo layout changes
+logo_sizes = {
+    'EK': 1.2,    # Emirates - larger
+    'SQ': 0.8,    # Singapore Airlines
+    'CA': 0.8,    # Air China
+    'JL': 0.8,    # Japan Airlines
+    'NW': 0.8,    # Northwest Airlines
+    'AF/KL': 0.8,    # Air France-KLM
+    'KL': 0.8,    # KLM
+    'default': 0.6,  # Default size for all other airlines
+    'UA': 0.4,  # United Airlines - smaller
+}
+
 
 def get_logo_path(airline, year, iata_code, month=6):
     """Get the appropriate logo path based on airline name, year and month"""
     # Manually set the start year to 1997 for all airlines.
     # It's just to cover the whole history. Usually the viz will start from 2000.
 
-    # Visit https://logos-world.net/ to find the logos
-    # Manually adjust to the same height if you need
+    # Visit https://logos-world.net/ or https://1000logos.net/ to find the logos
+    # Manually fine-tune: remove background and trim empty margins so logos touch top/bottom edges (edge-to-edge),
+    # this is to standardize their height
     logo_mapping = {
         "easyJet": [
             {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/EasyJet-Logo-History-700x310.jpg"}],
         "Emirates": [
-            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Emirates-Logo-History-700x302.jpg"}],
+            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Emirates-Logo-History-700x302.png"}],
         "Air France-KLM": [
             {"start_year": 1997, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-1991-500x281.png", "iata": "KL"},
             {"start_year": 2004, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2004-2009-500x281.png", "iata": "AF"},
             {"start_year": 2009, "end_year": 2019, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2009-2019-500x281.png", "iata": "AF"},
             {"start_year": 2019, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2019-present-500x281.jpg", "iata": "AF"} # have both KLM & Air France-KLM logos here
-        ],
-        # and also KLM & Air France-KLM separately
-        "KLM Royal Dutch": [
-            {"start_year": 1997, "end_year": 2011, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-1991-500x281.png"},
-            {"start_year": 2011, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-2011-500x281.jpg"}
-        ],
-        "Air France": [
-            {"start_year": 1997, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-1998-2009-700x394.jpg"},
-            {"start_year": 2009, "end_year": 2016, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-2009-2016-700x394.jpg"},
-            {"start_year": 2016, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-2016-present-700x394.jpg"}
         ],
         "ANA Holdings": [
             {"start_year": 1986, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/All-Nippon-Airways-Logo.jpg"}
@@ -97,10 +103,6 @@ def get_logo_path(airline, year, iata_code, month=6):
             {"start_year": 1997, "end_year": 2013, "file": "../99.utility/airline-bar-video/logos/American-Airlines-Logo-1967-2013-700x394.png"},
             {"start_year": 2013, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/American-Airlines-Logo-2013-present-700x394.jpg"}
         ],
-        "British Airways": [
-            {"start_year": 1997, "end_year": 2008, "file": "../99.utility/airline-bar-video/logos/British-Airways-Logo-1997-500x281.png"},
-            {"start_year": 2008, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/British-Airways-Logo-500x281.jpg"}
-        ],
         "United Airlines": [
             {"start_year": 1997, "end_year": 2010, "file": "../99.utility/airline-bar-video/logos/United-Airlines-Logo-1998-2010-700x394.png"},
             {"start_year": 2010, "end_year": 2019, "file": "../99.utility/airline-bar-video/logos/United-Airlines-Logo-2010-2019-700x394.png"},
@@ -115,12 +117,9 @@ def get_logo_path(airline, year, iata_code, month=6):
             {"start_year": 1989, "end_year": 2014, "file": "../99.utility/airline-bar-video/logos/Southwest-Airlines-Logo-1998-2014-700x394.png"},
             {"start_year": 2014, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Southwest-Airlines-Logo-2014-present-700x394.jpg"}
         ],
-        "Lufthansa": [
+        "Deutsche Lufthansa": [
             {"start_year": 1997, "end_year": 2018, "file": "../99.utility/airline-bar-video/logos/Lufthansa-Logo-1963-2018-700x394.png"},
             {"start_year": 2018, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Lufthansa-Logo-2018-present-700x394.jpg"}
-        ],
-        "Deutsche Lufthansa": [
-            {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/deutsche luft hansa.png"}
         ],
         "Air China": [
             {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-China-Logo-500x281.jpg"}],
@@ -217,7 +216,7 @@ def get_logo_path(airline, year, iata_code, month=6):
         return norwegian_logo if os.path.exists(norwegian_logo) else None
         
     if airline not in logo_mapping:
-        print(f"Company {airline} not found in logo mapping keys")
+        # print(f"Company {airline} not found in logo mapping keys")
         return None
         
     logo_versions = logo_mapping[airline]
@@ -335,16 +334,17 @@ def interpolate_quarterly_data(revenue_data):
     return interpolated_data
 
 
+def get_logo_size(airline_code):
+    """Get logo size based on airline IATA code"""
+    return logo_sizes.get(airline_code, logo_sizes['default'])
+
 def get_encoded_image(logo_path, airline_name=None):
     """Load image, trim whitespace, resize to fixed height, and return base64 data URL.
 
     This ensures logos在可视化中高度一致，宽度按比例缩放。
     """
-    # 特别处理Emirates的logo高度
-    if airline_name == "Emirates":
-        TARGET_HEIGHT_PX = 150  # Emirates特殊高度
-    else:
-        TARGET_HEIGHT_PX = 40  # 其他航空公司统一高度
+    # Use consistent height for all logos - size differences handled by logo_sizes config
+    TARGET_HEIGHT_PX = 40  # Standard height for all airlines
 
     def trim_whitespace(img: Image.Image) -> Image.Image:
         # 将非透明背景/白色边缘裁剪掉
@@ -397,16 +397,16 @@ def create_visualization():
     # Process metadata
     metadata = df.iloc[:7].copy()
     
-    # Find EBITDA row to separate revenue data from EBITDA data
-    EBITDA_row = None
+    # Find yoy row to separate revenue data from yoy data
+    yoy_row = None
     for i in range(7, len(df)):
-        if str(df.iloc[i, 0]).strip() == 'EBITDA':
-            EBITDA_row = i
+        if str(df.iloc[i, 0]).strip() == 'Revenue Growth YoY':
+            yoy_row = i
             break
     
-    # Extract only revenue data (from row 7 to EBITDA row)
-    if EBITDA_row is not None:
-        revenue_data = df.iloc[7:EBITDA_row].copy()
+    # Extract only revenue data (from row 7 to yoy row)
+    if yoy_row is not None:
+        revenue_data = df.iloc[7:yoy_row].copy()
     else:
         revenue_data = df.iloc[7:].copy()
     
@@ -414,9 +414,20 @@ def create_visualization():
 
     # print("before\n", revenue_data)
     
-    # Convert revenue columns
+    # Convert revenue columns: parse strings like "16,957 M" or "12.3 B" into millions
+    def parse_money_series(series: pd.Series) -> pd.Series:
+        s = series.astype(str).str.strip()
+        # Extract numeric component (supports commas and decimals)
+        num = s.str.extract(r'([0-9.,]+)', expand=False).fillna('')
+        num = num.str.replace(',', '', regex=True)
+        values = pd.to_numeric(num, errors='coerce')
+        # Detect unit (M/B). Default to M if missing
+        unit = s.str.extract(r'([MB])', expand=False)
+        multiplier = unit.map({'M': 1.0, 'B': 1000.0}).fillna(1.0)
+        return values * multiplier
+
     for col in revenue_data.columns[1:]:
-        revenue_data[col] = pd.to_numeric(revenue_data[col].str.replace(r'[,\s"$ ]', '', regex=True), errors='coerce')
+        revenue_data[col] = parse_money_series(revenue_data[col])
     
     # Remove empty rows from the end (excluding the quarter indicator column)
     # Check from the last row backwards until we find a row with data
@@ -435,22 +446,15 @@ def create_visualization():
             break
     
     revenue_data.set_index(revenue_data.columns[0], inplace=True)
+    # 仅当所有数据列均为 NaN 时才删除该行
+    revenue_data.dropna(how='all', inplace=True)
     revenue_data.fillna(0,inplace=True)
     
     # Apply interpolation processing
     revenue_data = interpolate_quarterly_data(revenue_data)
     
-    # Convert quarterly data to annual revenue (rolling 4-quarter sum)
-    # This means each quarter shows the sum of current quarter + previous 3 quarters
+    # 使用单季数据（直接取数），不再进行TTM滚动四季度求和
     annual_revenue_data = revenue_data.copy()
-    
-    # Calculate rolling 4-quarter sum for each airline
-    for airline in revenue_data.columns:
-        annual_revenue_data[airline] = revenue_data[airline].rolling(window=4, min_periods=4).sum()
-    
-    # Remove rows where we don't have 4 quarters of data (i.e., 1997 and early 1998)
-    # Keep only rows where all airlines have valid annual data
-    annual_revenue_data = annual_revenue_data.dropna()
     
     # print("after\n", annual_revenue_data)
     annual_revenue_data.to_csv("output/revenue_data.csv", index=True)
@@ -468,7 +472,8 @@ def create_visualization():
         month = q * 3
         
         quarter_data = annual_revenue_data.loc[quarter].dropna()
-        top_airlines = quarter_data.sort_values(ascending=False).head(args.max_airlines)
+        # 保留全量公司用于跨季度平滑插值（TopN 仅用于展示切片）
+        top_airlines = quarter_data.sort_values(ascending=False)
         # print(quarter, quarter_data, top_airlines)
         
         airlines = []
@@ -540,12 +545,13 @@ def create_visualization():
     fig = go.Figure()
     
     # Add traces - Note: Using numerical y positions
+    sliced_count = min(len(initial_data['revenues']), args.max_airlines)
     fig.add_trace(
             go.Bar(
-                x=initial_data['revenues'],
-                y=initial_data['y_positions'],
+                x=initial_data['revenues'][:sliced_count],
+                y=list(range(sliced_count)),
                 orientation='h',
-                marker=dict(color=initial_data['colors'][::-1],
+                marker=dict(color=initial_data['colors'][:sliced_count][::-1],
                             line=dict(width=0, color='rgba(0,0,0,0)')),
                 hoverinfo='none',
                 width=0.8,
@@ -556,12 +562,12 @@ def create_visualization():
     # Add text layer with transparent bars - Add vertical offset
     fig.add_trace(
             go.Bar(
-                x=initial_data['revenues'][::-1],
-                y=[y - 0.05 for y in initial_data['y_positions'][::-1]],  # Add small offset for text
+                x=initial_data['revenues'][:sliced_count][::-1],
+                y=[y - 0.05 for y in list(range(sliced_count))[::-1]],  # Add small offset for text
                 orientation='h',
                 marker=dict(color='rgba(0,0,0,0)',
                             line=dict(width=0, color='rgba(0,0,0,0)')),
-                text=initial_data['formatted_revenues'][::-1],
+                text=initial_data['formatted_revenues'][:sliced_count][::-1],
                 textposition='outside',
                 textfont=dict(
                     family='Monda',
@@ -597,11 +603,8 @@ def create_visualization():
     
     for i, (airline, revenue, logo, aspect_ratio) in enumerate(zip(initial_data['airlines'], initial_data['revenues'], initial_data['logos'], initial_data['logo_aspect_ratios'])):
         if logo:
-            # Calculate dynamic sizey based on airline
-            if airline == "EK":  # Emirates IATA code
-                logo_sizey = 1.2  # Larger for Emirates
-            else:
-                logo_sizey = 0.6  # Smaller for others
+            # Calculate dynamic sizey based on airline using the configuration
+            logo_sizey = get_logo_size(airline)
                 
             fig.add_layout_image(
                 dict(
@@ -653,8 +656,8 @@ def create_visualization():
                 'font': {'family': 'Monda', 'size': 16}
             },
             tickmode='array',
-            tickvals=initial_data['y_positions'],
-            ticktext=initial_data['airlines'],
+            tickvals=list(range(sliced_count)),
+            ticktext=initial_data['airlines'][:sliced_count],
             tickfont={'family': 'Monda', 'size': 16},
             fixedrange=True,
             autorange='reversed'
@@ -781,16 +784,17 @@ def create_visualization():
             const resetButton = document.getElementById('reset-button');
             
             const initialData = allQuartersData[0];
+            const TOP_N = {max_airlines};
             
             // Create traces array with the bar chart and region legends
             const traces = [
                 {{
                     type: 'bar',
-                    x: initialData.revenues,
-                    y: initialData.y_positions,
+                    x: initialData.revenues.slice(0, TOP_N),
+                    y: Array.from({length: Math.min(TOP_N, initialData.revenues.length)}, (_, i) => i),
                     orientation: 'h',
                     marker: {{
-                        color: initialData.colors,
+                        color: initialData.colors.slice(0, TOP_N),
                         line: {{
                             width: 0,
                             color: 'rgba(0,0,0,0)'
@@ -802,8 +806,8 @@ def create_visualization():
                 }},
                 {{
                     type: 'bar',
-                    x: initialData.revenues,
-                    y: initialData.y_positions,
+                    x: initialData.revenues.slice(0, TOP_N),
+                    y: Array.from({length: Math.min(TOP_N, initialData.revenues.length)}, (_, i) => i - 0.05),
                     orientation: 'h',
                     marker: {{
                         color: 'rgba(0,0,0,0)',
@@ -812,7 +816,7 @@ def create_visualization():
                             color: 'rgba(0,0,0,0)'
                         }}
                     }},
-                    text: initialData.formatted_revenues,
+                    text: initialData.formatted_revenues.slice(0, TOP_N),
                     textposition: 'outside',
                     textfont: {{
                         family: 'Monda',
@@ -838,6 +842,18 @@ def create_visualization():
                 'Russia': '#FF4B4B',
                 'Turkey': '#DEB887'
             }};
+            
+            const logoSizes = {{
+                'EK': 1.2,    // Emirates - larger
+                'SQ': 0.8,    // Singapore Airlines
+                'CA': 0.8,    // Air China
+                'JL': 0.8,    // Japan Airlines
+                'default': 0.6  // Default size for all other airlines
+            }};
+            
+            function getLogoSize(airlineCode) {{
+                return logoSizes[airlineCode] || logoSizes['default'];
+            }}
             
             Object.entries(regions).forEach(([region, color]) => {{
                 traces.push({{
@@ -910,11 +926,11 @@ def create_visualization():
                 images: (() => {{
                     const xAxisMax = Math.max(...initialData.revenues) * 1.5;
                     const baseLogoWidth = xAxisMax * 0.1; // base width proportional to axis range
-                    return initialData.logos.map((logo, i) => {{
+                    return initialData.logos.slice(0, TOP_N).map((logo, i) => {{
                         if (!logo) return null;
                         
-                        // Calculate dynamic sizey based on airline
-                        const logoSizey = initialData.airlines[i] === "EK" ? 1.2 : 0.6;
+                        // Calculate dynamic sizey based on airline using configuration
+                        const logoSizey = getLogoSize(initialData.airlines[i]);
                         
                         return {{
                             source: logo,
@@ -967,25 +983,50 @@ def create_visualization():
                     const currentData = allQuartersData[currentIndex];
                     const nextData = allQuartersData[nextIndex];
                     
-                    const interpolatedData = currentData.revenues.map((startVal, i) => ({{
-                        airline: currentData.airlines[i],
-                        revenue: startVal + (nextData.revenues[i] - startVal) * progress,
-                        logo: currentData.logos[i],
-                        aspectRatio: currentData.logo_aspect_ratios ? currentData.logo_aspect_ratios[i] : null,
-                        color: currentData.colors[i],
-                        formattedRevenue: formatRevenue(startVal + (nextData.revenues[i] - startVal) * progress),
-                        y_position: i
-                    }}));
+                    // Align by airline label across frames and interpolate values
+                    const currentMap = {};
+                    currentData.airlines.forEach((a, idx) => {{
+                        currentMap[a] = {{
+                            revenue: currentData.revenues[idx],
+                            logo: currentData.logos[idx],
+                            aspectRatio: currentData.logo_aspect_ratios ? currentData.logo_aspect_ratios[idx] : null,
+                            color: currentData.colors[idx]
+                        }};
+                    }});
+                    const nextMap = {};
+                    nextData.airlines.forEach((a, idx) => {{
+                        nextMap[a] = {{
+                            revenue: nextData.revenues[idx],
+                            logo: nextData.logos[idx],
+                            aspectRatio: nextData.logo_aspect_ratios ? nextData.logo_aspect_ratios[idx] : null,
+                            color: nextData.colors[idx]
+                        }};
+                    }});
+                    const allAirlines = Array.from(new Set([...currentData.airlines, ...nextData.airlines]));
+                    const interpolatedData = allAirlines.map((airline) => {{
+                        const cur = currentMap[airline] || {{ revenue: 0, logo: null, aspectRatio: null, color: (nextMap[airline] ? nextMap[airline].color : '#808080') }};
+                        const nxt = nextMap[airline] || {{ revenue: 0, logo: null, aspectRatio: null, color: cur.color }};
+                        const value = cur.revenue + (nxt.revenue - cur.revenue) * progress;
+                        return {{
+                            airline,
+                            revenue: value,
+                            logo: cur.logo || nxt.logo,
+                            aspectRatio: cur.aspectRatio != null ? cur.aspectRatio : nxt.aspectRatio,
+                            color: cur.color || nxt.color,
+                            formattedRevenue: formatRevenue(value)
+                        }};
+                    }});
                     
                     interpolatedData.sort((a, b) => b.revenue - a.revenue);
+                    const top = interpolatedData.slice(0, TOP_N);
                     
-                    const airlinesSorted = interpolatedData.map(d => d.airline);
-                    const revenuesSorted = interpolatedData.map(d => d.revenue);
-                    const logosSorted = interpolatedData.map(d => d.logo);
-                    const colorsSorted = interpolatedData.map(d => d.color);
-                    const formattedRevenuesSorted = interpolatedData.map(d => d.formattedRevenue);
-                    const yPositionsSorted = interpolatedData.map((d, i) => i);
-                    const aspectRatiosSorted = interpolatedData.map(d => d.aspectRatio);
+                    const airlinesSorted = top.map(d => d.airline);
+                    const revenuesSorted = top.map(d => d.revenue);
+                    const logosSorted = top.map(d => d.logo);
+                    const colorsSorted = top.map(d => d.color);
+                    const formattedRevenuesSorted = top.map(d => d.formattedRevenue);
+                    const yPositionsSorted = top.map((_, i) => i);
+                    const aspectRatiosSorted = top.map(d => d.aspectRatio);
                     
                     const currentMaxRevenue = Math.max(...revenuesSorted);
                     historicalMaxRevenue = Math.max(historicalMaxRevenue, currentMaxRevenue);
@@ -1009,8 +1050,8 @@ def create_visualization():
                             'images': logosSorted.map((logo, i) => {{
                                 if (!logo) return null;
                                 
-                                // Calculate dynamic sizey based on airline
-                                const logoSizey = airlinesSorted[i] === "EK" ? 1.2 : 0.6;
+                                // Calculate dynamic sizey based on airline using configuration
+                                const logoSizey = getLogoSize(airlinesSorted[i]);
                                 
                                 return {{
                                     source: logo,
@@ -1098,16 +1139,20 @@ def create_visualization():
     </script>
 </body>
 </html>
-    """.format(
-        html_content=html_content,
-        initial_quarter=initial_data['quarter'],
-        max_quarters=len(quarters) - 1,
-        quarters_data=quarters_data_json,
-        animation_duration=args.transition_duration,
-        width=args.width,
-        height=args.height
-    )
+    """
 
+    custom_html = (custom_html
+        .replace("{html_content}", html_content)
+        .replace("{initial_quarter}", initial_data['quarter'])
+        .replace("{max_quarters}", str(len(quarters) - 1))
+        .replace("{quarters_data}", quarters_data_json)
+        .replace("{animation_duration}", str(args.transition_duration))
+        .replace("{width}", str(args.width))
+        .replace("{height}", str(args.height))
+        .replace("{max_airlines}", str(args.max_airlines))
+    )
+    # Normalize doubled braces back to single braces for valid JS/CSS
+    custom_html = custom_html.replace("{{", "{").replace("}}", "}")
     
     # Save HTML file
     with open(args.output, 'w') as f:
