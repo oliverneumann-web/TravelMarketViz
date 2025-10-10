@@ -62,11 +62,37 @@ logo_sizes = {
     'JL': 0.8,    # Japan Airlines
     'NW': 0.8,    # Northwest Airlines
     'AF/KL': 0.8,    # Air France-KLM
-    'KL': 0.8,    # KLM
     'default': 0.6,  # Default size for all other airlines
     'UA': 0.4,  # United Airlines - smaller
 }
 
+# Display names mapping - handles airline mergers and name changes
+# Default: key = value (e.g., "UA": "UA")
+# e.g., display_names = {key: key for key in all_iata_codes}
+# Special cases: merged airlines show different names before/after merger
+def update_display_names_for_quarter(quarter, display_names):
+    """
+    Update display names based on the current quarter for merger handling.
+    
+    Args:
+        quarter (str): Quarter string like "2004'Q2"
+    """
+    year, q = parse_quarter(quarter)
+    month = q * 3
+    
+    # Air France-KLM merger: AF and KL merged in May 2004
+    # Before May 2004, treat the combined entity as AF for display/label purposes
+    if year < 2004 or (year == 2004 and month < 5):  
+        display_names['Air France-KLM'] = 'AF'
+    else:
+        display_names['Air France-KLM'] = 'AF/KL'
+
+    # British Airways and Iberia merged in Jan 2011
+    if year < 2011:
+        display_names['IAG'] = 'BA'
+    else:
+        display_names['IAG'] = 'IAG'
+    
 
 def get_logo_path(airline, year, iata_code, month=6):
     """Get the appropriate logo path based on airline name, year and month"""
@@ -76,16 +102,29 @@ def get_logo_path(airline, year, iata_code, month=6):
     # Visit https://logos-world.net/ or https://1000logos.net/ to find the logos
     # Manually fine-tune: remove background and trim empty margins so logos touch top/bottom edges (edge-to-edge),
     # this is to standardize their height
+    # Special handling: Before May 2004, Air France-KLM uses Air France logo
+    if airline == "Air France-KLM" and (year < 2004 or (year == 2004 and month < 5)):
+        airline = "Air France"
+    elif airline == "IAG" and (year < 2011):
+        airline = "British Airways"
+
     logo_mapping = {
         "easyJet": [
             {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/EasyJet-Logo-History-700x310.jpg"}],
         "Emirates": [
             {"start_year": 1997, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Emirates-Logo-History-700x302.png"}],
+        "KLM": [
+            {"start_year": 1997, "end_year": 2099, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-1991-500x281.png"}],
+        "British Airways": [
+            {"start_year": 1997, "end_year": 2008, "file": "../99.utility/airline-bar-video/logos/British-Airways-Logo-1997-500x281.png"},
+            {"start_year": 2008, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/British-Airways-Logo-500x281.jpg"}
+        ],
+        "Air France": [
+            {"start_year": 1997, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-Logo-1998-2009-700x394.jpg"}],
         "Air France-KLM": [
-            {"start_year": 1997, "end_year": 2004, "file": "../99.utility/airline-bar-video/logos/KLM-Logo-1991-500x281.png", "iata": "KL"},
-            {"start_year": 2004, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2004-2009-500x281.png", "iata": "AF"},
-            {"start_year": 2009, "end_year": 2019, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2009-2019-500x281.png", "iata": "AF"},
-            {"start_year": 2019, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2019-present-500x281.jpg", "iata": "AF"} # have both KLM & Air France-KLM logos here
+            {"start_year": 2004, "end_year": 2009, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2004-2009-500x281.png"},
+            {"start_year": 2009, "end_year": 2019, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2009-2019-500x281.png"},
+            {"start_year": 2019, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/Air-France-KLM-Logo-2019-present-500x281.jpg"}
         ],
         "ANA Holdings": [
             {"start_year": 1986, "end_year": 9999, "file": "../99.utility/airline-bar-video/logos/All-Nippon-Airways-Logo.jpg"}
@@ -220,21 +259,6 @@ def get_logo_path(airline, year, iata_code, month=6):
         return None
         
     logo_versions = logo_mapping[airline]
-    
-    # Handle Air France-KLM special case
-    if airline == "Air France-KLM":
-        if year < 2004 or (year == 2004 and month < 5):
-            # Use KLM logo before May 2004
-            for version in logo_versions:
-                if version["iata"] == "KL":
-                    logo_path = version["file"]
-                    return logo_path if os.path.exists(logo_path) else None
-        else:
-            # Use Air France-KLM logo after May 2004
-            for version in logo_versions:
-                if version["iata"] == "AF":
-                    logo_path = version["file"]
-                    return logo_path if os.path.exists(logo_path) else None
     
     # Standard processing
     for version in logo_versions:
@@ -397,6 +421,25 @@ def create_visualization():
     # Process metadata
     metadata = df.iloc[:7].copy()
     
+    # Initialize display_names mapping airline names to IATA codes
+    # The metadata is indexed by the first column (Airline), so we need to access by row index
+    airline_names = metadata.iloc[0].dropna()  # Row 0 contains airline names
+    iata_codes = metadata.iloc[5].dropna()     # Row 5 contains IATA codes
+    display_names = {}
+    for airline_name, iata_code in zip(airline_names, iata_codes):
+        if pd.notna(airline_name) and pd.notna(iata_code):
+            display_names[airline_name] = iata_code
+    
+    # Build IATA code to airline full name mapping from CSV data
+    # First row (index 0) contains airline names, 6th row (index 5) contains IATA codes
+    airline_names = df.iloc[0].tolist()[1:]  # Skip first column (Airline header)
+    iata_codes = df.iloc[5].tolist()[1:]      # Skip first column (IATA Code header)
+    
+    iata_to_airline_name = {}
+    for airline_name, iata_code in zip(airline_names, iata_codes):
+        if pd.notna(iata_code) and pd.notna(airline_name):
+            iata_to_airline_name[iata_code] = airline_name
+    
     # Find yoy row to separate revenue data from yoy data
     yoy_row = None
     for i in range(7, len(df)):
@@ -448,7 +491,8 @@ def create_visualization():
     revenue_data.set_index(revenue_data.columns[0], inplace=True)
     # 仅当所有数据列均为 NaN 时才删除该行
     revenue_data.dropna(how='all', inplace=True)
-    revenue_data.fillna(0,inplace=True)
+    # 不填充缺失值为0，让航空公司在没有数据时直接消失
+    # revenue_data.fillna(0,inplace=True)
     
     # Apply interpolation processing
     revenue_data = interpolate_quarterly_data(revenue_data)
@@ -471,12 +515,18 @@ def create_visualization():
         year, q = parse_quarter(quarter)
         month = q * 3
         
+        # Update display names for this quarter
+        update_display_names_for_quarter(quarter, display_names)
+        
         quarter_data = annual_revenue_data.loc[quarter].dropna()
+        # 只保留有收入的航空公司（收入大于0）
+        quarter_data = quarter_data[quarter_data > 0]
         # 保留全量公司用于跨季度平滑插值（TopN 仅用于展示切片）
         top_airlines = quarter_data.sort_values(ascending=False)
         # print(quarter, quarter_data, top_airlines)
         
-        airlines = []
+        airlines = []  # canonical ids for alignment across quarters
+        labels = []    # display labels for y-axis (can change over time)
         revenues = []
         colors = []
         hover_texts = []
@@ -487,21 +537,20 @@ def create_visualization():
         # Create lists for each airline's data
         for i, (airline, revenue) in enumerate(top_airlines.items()):
             if pd.notna(revenue) and revenue > 0:
-                region = metadata.loc['Region', airline]
+                region = metadata.loc['Region', airline]  # Access by row label after set_index
                 color = region_colors.get(region, '#808080')
-                iata_code = metadata.loc['IATA Code', airline]
+                iata_code = metadata.loc['IATA Code', airline]  # Access by row label after set_index
                 
-                # Special handling for Air France-KLM labels
-                if airline == "Air France-KLM":
-                    if year < 2004 or (year == 2004 and month < 5):
-                        label = "KL"  # Use KL before May 2004
-                    else:
-                        label = iata_code if pd.notna(iata_code) else airline[:3]
-                else:
-                    label = iata_code if pd.notna(iata_code) else airline[:3]
+                # Display label for UI (airline name -> IATA code), may change over time
+                display_label = display_names.get(airline, iata_code if pd.notna(iata_code) else airline[:3])
+
+                # Canonical id for alignment across quarters (stable full-name column id)
+                canonical_id = airline
                 
                 # Get logo path and encode it
-                logo_path = get_logo_path(airline, year, iata_code, month)
+                # Use IATA code to find airline name for logo lookup
+                airline_name_for_logo = iata_to_airline_name.get(iata_code, airline) if pd.notna(iata_code) else airline
+                logo_path = get_logo_path(airline_name_for_logo, year, iata_code, month)
                 encoded_logo = None
                 aspect_ratio = None
                 if logo_path:
@@ -511,7 +560,8 @@ def create_visualization():
                     else:
                         encoded_logo = result
                 
-                airlines.append(label)
+                airlines.append(canonical_id)
+                labels.append(display_label)
                 revenues.append(revenue)
                 colors.append(color)
                 logos.append(encoded_logo)
@@ -528,6 +578,7 @@ def create_visualization():
         quarter_info = {
             'quarter': quarter,
             'airlines': airlines,
+            'labels': labels,
             'revenues': revenues,
             'colors': colors,
             'hover_texts': hover_texts,
@@ -657,7 +708,7 @@ def create_visualization():
             },
             tickmode='array',
             tickvals=list(range(sliced_count)),
-            ticktext=initial_data['airlines'][:sliced_count],
+            ticktext=initial_data['labels'][:sliced_count],
             tickfont={'family': 'Monda', 'size': 16},
             fixedrange=True,
             autorange='reversed'
@@ -903,7 +954,7 @@ def create_visualization():
                     }},
                     tickmode: 'array',
                     tickvals: initialData.y_positions,
-                    ticktext: initialData.airlines,
+                    ticktext: initialData.labels,
                     tickfont: {{family: 'Monda', size: 16}},
                     autorange: 'reversed'
                 }},
@@ -930,7 +981,7 @@ def create_visualization():
                         if (!logo) return null;
                         
                         // Calculate dynamic sizey based on airline using configuration
-                        const logoSizey = getLogoSize(initialData.airlines[i]);
+                        const logoSizey = getLogoSize(initialData.labels[i]);
                         
                         return {{
                             source: logo,
@@ -983,44 +1034,72 @@ def create_visualization():
                     const currentData = allQuartersData[currentIndex];
                     const nextData = allQuartersData[nextIndex];
                     
-                    // Align by airline label across frames and interpolate values
+                    // Align by stable ID across frames and interpolate values (no 0-endpoint fade)
                     const currentMap = {};
-                    currentData.airlines.forEach((a, idx) => {{
-                        currentMap[a] = {{
+                    currentData.airlines.forEach((id, idx) => {{
+                        currentMap[id] = {{
                             revenue: currentData.revenues[idx],
                             logo: currentData.logos[idx],
                             aspectRatio: currentData.logo_aspect_ratios ? currentData.logo_aspect_ratios[idx] : null,
-                            color: currentData.colors[idx]
+                            color: currentData.colors[idx],
+                            label: currentData.labels[idx]
                         }};
                     }});
                     const nextMap = {};
-                    nextData.airlines.forEach((a, idx) => {{
-                        nextMap[a] = {{
+                    nextData.airlines.forEach((id, idx) => {{
+                        nextMap[id] = {{
                             revenue: nextData.revenues[idx],
                             logo: nextData.logos[idx],
                             aspectRatio: nextData.logo_aspect_ratios ? nextData.logo_aspect_ratios[idx] : null,
-                            color: nextData.colors[idx]
+                            color: nextData.colors[idx],
+                            label: nextData.labels[idx]
                         }};
                     }});
-                    const allAirlines = Array.from(new Set([...currentData.airlines, ...nextData.airlines]));
-                    const interpolatedData = allAirlines.map((airline) => {{
-                        const cur = currentMap[airline] || {{ revenue: 0, logo: null, aspectRatio: null, color: (nextMap[airline] ? nextMap[airline].color : '#808080') }};
-                        const nxt = nextMap[airline] || {{ revenue: 0, logo: null, aspectRatio: null, color: cur.color }};
-                        const value = cur.revenue + (nxt.revenue - cur.revenue) * progress;
+                    const allIds = Array.from(new Set([...currentData.airlines, ...nextData.airlines]));
+                    const interpolatedData = allIds.map((id) => {{
+                        const cur = currentMap[id] || {{ revenue: null, logo: null, aspectRatio: null, color: (nextMap[id] ? nextMap[id].color : '#808080'), label: (nextMap[id] ? nextMap[id].label : id) }};
+                        const nxt = nextMap[id] || {{ revenue: null, logo: null, aspectRatio: null, color: cur.color, label: cur.label }};
+                        
+                        // Instant appear/disappear when one side missing
+                        let value;
+                        if (cur.revenue == null && nxt.revenue == null) {{
+                            return null;
+                        }} else if (cur.revenue == null) {{
+                            value = nxt.revenue;
+                        }} else if (nxt.revenue == null) {{
+                            value = cur.revenue;
+                        }} else {{
+                            value = cur.revenue + (nxt.revenue - cur.revenue) * progress;
+                        }}
+                        const label = nxt.label || cur.label;
+
+                        // Prefer next logo/aspect when label changes at this boundary
+                        const labelChanged = (cur.label !== undefined && nxt.label !== undefined && cur.label !== nxt.label);
+                        let logo, aspectRatio;
+                        if (labelChanged && nxt.logo) {
+                            logo = nxt.logo;
+                            aspectRatio = (nxt.aspectRatio != null ? nxt.aspectRatio : cur.aspectRatio);
+                        } else {
+                            logo = cur.logo || nxt.logo;
+                            aspectRatio = (cur.aspectRatio != null ? cur.aspectRatio : nxt.aspectRatio);
+                        }
+
                         return {{
-                            airline,
+                            id,
+                            label,
                             revenue: value,
-                            logo: cur.logo || nxt.logo,
-                            aspectRatio: cur.aspectRatio != null ? cur.aspectRatio : nxt.aspectRatio,
+                            logo: logo,
+                            aspectRatio: aspectRatio,
                             color: cur.color || nxt.color,
                             formattedRevenue: formatRevenue(value)
                         }};
-                    }});
+                    }}).filter(item => item !== null);
                     
                     interpolatedData.sort((a, b) => b.revenue - a.revenue);
                     const top = interpolatedData.slice(0, TOP_N);
                     
-                    const airlinesSorted = top.map(d => d.airline);
+                    const airlinesSorted = top.map(d => d.id);
+                    const labelsSorted = top.map(d => d.label);
                     const revenuesSorted = top.map(d => d.revenue);
                     const logosSorted = top.map(d => d.logo);
                     const colorsSorted = top.map(d => d.color);
@@ -1043,7 +1122,7 @@ def create_visualization():
                             'text': [[], formattedRevenuesSorted],
                             'width': [0.8, 0.8]
                         }}, {{
-                            'yaxis.ticktext': airlinesSorted,
+                            'yaxis.ticktext': labelsSorted,
                             'yaxis.tickvals': yPositionsSorted,
                             'yaxis.autorange': 'reversed',
                             'xaxis.range': [0, xAxisMax],
@@ -1051,7 +1130,7 @@ def create_visualization():
                                 if (!logo) return null;
                                 
                                 // Calculate dynamic sizey based on airline using configuration
-                                const logoSizey = getLogoSize(airlinesSorted[i]);
+                                const logoSizey = getLogoSize(labelsSorted[i]);
                                 
                                 return {{
                                     source: logo,
