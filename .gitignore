@@ -11,6 +11,8 @@ output/
 *.tiff
 *.ico
 
+99.utility/
+
 # Exception for logos directory
 !logos/**/*.png
 !logos/**/*.jpg

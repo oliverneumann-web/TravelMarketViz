@@ -703,7 +703,7 @@ def create_visualization():
         ),
         yaxis=dict(
             title={
-                'text': "Airline",
+                'text': "",
                 'font': {'family': 'Monda', 'size': 16}
             },
             tickmode='array',
@@ -949,7 +949,7 @@ def create_visualization():
                 }},
                 yaxis: {{
                     title: {{
-                        text: "Airline",
+                        text: "",
                         font: {{family: 'Monda', size: 16}}
                     }},
                     tickmode: 'array',
