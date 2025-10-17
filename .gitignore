@@ -12,6 +12,7 @@ output/
 *.ico
 
 99.utility/
+!99.utility/readme-images/
 
 # Exception for logos directory
 !logos/**/*.png
