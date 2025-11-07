@@ -262,6 +262,7 @@ const companyNames = {
   'KYAK': 'KYAK',
   'eLONG': 'eLONG',
   'Tongcheng Travel': 'Tongcheng Travel',
+  'eSky': 'eSky', 
 };
 
 const navigation = [
@@ -474,13 +475,34 @@ const importFromGoogleSheet = async () => {
     const headers = rows[0];
     console.log('Headers:', headers);
     
+    const isEmptyRow = (row) => {
+      if (!row) return true;
+      return row.every(cell => {
+        if (cell === null || cell === undefined) return true;
+        if (typeof cell === 'number') return false;
+        return String(cell).trim() === '';
+      });
+    };
+
     // Extract quarters from the first column after the Rev Growth YoY row
+    // Stop when we encounter an empty row or reach the EBITDA section
     let currentYear = null;
     let quarterCount = 0;
     const quarters = [];
-    
-    rows.slice(revenueGrowthRowIndex + 1, ebitdaStartIndex).forEach(row => {
-      const yearStr = row[0];
+    const revenueGrowthDataRows = [];
+
+    for (let i = revenueGrowthRowIndex + 1; i < rows.length; i++) {
+      if (i === ebitdaStartIndex) break;
+
+      const row = rows[i];
+      if (isEmptyRow(row)) {
+        console.log(`Stopping Revenue Growth extraction at row ${i}: encountered empty row`);
+        break;
+      }
+
+      if (!row || !row[0]) continue;
+
+      const yearStr = String(row[0]).trim();
       if (isValidQuarter(yearStr)) {
         if (yearStr !== currentYear) {
           currentYear = yearStr;
@@ -489,57 +511,84 @@ const importFromGoogleSheet = async () => {
         quarterCount++;
         const quarterStr = `${currentYear}'Q${quarterCount}`;
         quarters.push(quarterStr);
+        revenueGrowthDataRows.push({ row, quarter: quarterStr });
         console.log(`Generated quarter: ${quarterStr} from year ${yearStr}`);
       }
-    });
-    
+    }
+
     console.log('Generated quarters:', quarters);
-    
+    console.log(`Extracted ${revenueGrowthDataRows.length} revenue growth data rows`);
+
     // Prepare data for workbook
     const processedRows = [headers]; // Start with headers
-    
+
     // Add revenue growth data
     processedRows.push(['Rev Growth YoY']);
-    let currentQuarterIndex = 0;
-    
-    rows.slice(revenueGrowthRowIndex + 1, ebitdaStartIndex).forEach(row => {
-      if (isValidQuarter(row[0])) {
-        const quarterData = [...row];
-        quarterData[0] = quarters[currentQuarterIndex]; // Replace year with quarter string
-        processedRows.push(quarterData);
-        currentQuarterIndex++;
-      }
+
+    revenueGrowthDataRows.forEach(({ row, quarter }) => {
+      const quarterData = [...row];
+      quarterData[0] = quarter; // Replace year with quarter string
+      processedRows.push(quarterData);
     });
 
     // Add EBITDA margin data
     processedRows.push(['EBITDA Margin % Quarterly']);
-    currentQuarterIndex = 0;
-    
-    // Calculate total quarters from 2016'Q1 to 2025'Q1
-    // temperarily change to 40 to include Q1 2025, need to reconstruct the data part for a more robust solution
-    const TOTAL_QUARTERS = 40; // (2024-2016+1) * 4 quarters per year + Q1 2025
-    let processedQuarters = 0;
-    
-    rows.slice(ebitdaStartIndex + 1).forEach(row => {
-      // Stop processing after we've handled all quarters from 2016'Q1 to 2025'Q1
-      if (processedQuarters >= TOTAL_QUARTERS) return;
-      
-      if (isValidQuarter(row[0]) && currentQuarterIndex < quarters.length) {
+    let currentQuarterIndex = 0;
+    const ebitdaDataRows = [];
+
+    for (let i = ebitdaStartIndex + 1; i < rows.length; i++) {
+      const row = rows[i];
+
+      if (isEmptyRow(row)) {
+        console.log(`Stopping EBITDA extraction at row ${i}: encountered empty row`);
+        break;
+      }
+
+      if (!row || !row[0]) continue;
+
+      const firstCell = String(row[0]).trim();
+
+      if (isValidQuarter(firstCell) && currentQuarterIndex < quarters.length) {
         const quarterData = [...row];
         quarterData[0] = quarters[currentQuarterIndex]; // Replace year with quarter string
-        processedRows.push(quarterData);
+        ebitdaDataRows.push(quarterData);
         currentQuarterIndex++;
-        processedQuarters++;
       }
+    }
+
+    // Add all EBITDA data rows
+    ebitdaDataRows.forEach(quarterData => {
+      processedRows.push(quarterData);
     });
-    
-    console.log(`Processed ${processedQuarters} quarters of EBITDA data`);
-    
+
+    console.log(`Processed ${ebitdaDataRows.length} quarters of EBITDA data`);
+
+    const isQuarterLabel = (value) => {
+      if (!value) return false;
+      return /^\d{4}'Q[1-4]$/.test(String(value).trim());
+    };
+
+    const cleanedRows = processedRows.filter(row => {
+      if (!Array.isArray(row) || row.length === 0) return false;
+
+      if (!isQuarterLabel(row[0])) {
+        return true;
+      }
+
+      const hasData = row.slice(1).some(cell => {
+        if (cell === null || cell === undefined) return false;
+        if (typeof cell === 'number') return true;
+        return String(cell).trim() !== '';
+      });
+
+      return hasData;
+    });
+
     // Create workbook
     const workbook = {
       SheetNames: ['TTM (bounded)'],
       Sheets: {
-        'TTM (bounded)': XLSX.utils.aoa_to_sheet(processedRows)
+        'TTM (bounded)': XLSX.utils.aoa_to_sheet(cleanedRows)
       }
     };
     

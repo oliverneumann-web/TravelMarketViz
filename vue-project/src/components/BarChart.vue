@@ -125,8 +125,9 @@ const companyNames = {
   'FLT': 'Flight Centre',
   'Almosafer': 'Almosafer',
   'Webjet OTA': 'Webjet OTA',
-  'Tongcheng Travel': 'Tongcheng Travel'
-}
+  'Tongcheng Travel': 'Tongcheng Travel',
+  'eSky': 'eSky',
+};
 
 // Add new imports for logos
 const logoImports = {

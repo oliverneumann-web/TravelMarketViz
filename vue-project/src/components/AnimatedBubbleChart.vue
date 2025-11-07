@@ -518,6 +518,7 @@ import OTA_LOGO from '/logos/OTA_logo.png'
 import KYAK_LOGO from '/logos/KYAK_logo.png'
 import ELONG_LOGO from '/logos/ELONG_logo.png'
 import TONGCHENG_LOGO from '/logos/Tongcheng_logo.png'
+import ESKY_LOGO from '/logos/eSky_logo.png'
 
 
 // Company colors
@@ -552,6 +553,7 @@ const colorDict = {
   'KYAK': '#ff690f',
   'eLong': '#2141b2',
   'Tongcheng Travel': '#5b318f',
+  'eSky': '#002071', 
 };
 
 // Company logos
@@ -617,6 +619,7 @@ const companyNames = {
   'KYAK': 'KYAK',
   'eLong': 'eLong',
   'Tongcheng Travel': 'Tongcheng Travel',
+  'eSky': 'eSky', 
 };
 
 const currentYearIndex = ref(0);
@@ -1003,21 +1006,7 @@ const processExcelData = (file) => {
       
       // Filter out incomplete data points
       mergedData.value = processedData.filter(d => d.hasBothQuarters);
-      
-      // We no longer need to set global ranges during data load
-      // Each quarter will get its own range when first viewed
-      
-      console.log('=== Data Processing Debug ===')
-      console.log('Total processed data points before filtering:', processedData.length);
-      console.log('Sample of processed data before filtering:', processedData.slice(0, 5));
-      console.log('Total merged data points after filtering:', mergedData.value.length);
-      console.log('Sample of merged data after filtering:', mergedData.value.slice(0, 5));
-      console.log('Quarters with data:', years.value);
-      
-      if (mergedData.value.length === 0) {
-        throw new Error('No valid data points found after processing');
-      }
-      
+
       // Sort quarters chronologically
       years.value = Array.from(quarters).sort((a, b) => {
         const [yearA, quarterA] = a.split("'");
@@ -1025,12 +1014,34 @@ const processExcelData = (file) => {
         return parseInt(yearA) - parseInt(yearB) || 
                parseInt(quarterA.slice(1)) - parseInt(quarterB.slice(1));
       });
-      
-      if (years.value.length === 0) {
-        throw new Error('No valid quarters found after processing');
+
+      const quarterOrderMap = years.value.reduce((acc, quarter, index) => {
+        acc[quarter] = index;
+        return acc;
+      }, {});
+
+      mergedData.value.sort((a, b) => {
+        const orderA = quarterOrderMap[a.quarter] ?? Number.POSITIVE_INFINITY;
+        const orderB = quarterOrderMap[b.quarter] ?? Number.POSITIVE_INFINITY;
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        return a.company.localeCompare(b.company, 'en', { sensitivity: 'base' });
+      });
+
+      // We no longer need to set global ranges during data load
+      // Each quarter will get its own range when first viewed
+
+      console.log('=== Data Processing Debug ===')
+      console.log('Total processed data points before filtering:', processedData.length);
+      console.log('Sample of processed data before filtering:', processedData.slice(0, 5));
+      console.log('Total merged data points after filtering:', mergedData.value.length);
+      console.log('Sample of merged data after filtering:', mergedData.value.slice(0, 5));
+      console.log('Quarters with data:', years.value);
+
+      if (mergedData.value.length === 0) {
+        throw new Error('No valid data points found after processing');
       }
-      
-      currentYearIndex.value = years.value.length - 1; // Start from the latest quarter
       
       // Emit quarters loaded event
       emit('quarters-loaded', {
