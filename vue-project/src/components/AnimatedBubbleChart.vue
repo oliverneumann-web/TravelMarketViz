@@ -1311,33 +1311,51 @@ const initChart = () => {
         // Otherwise calculate optimal range for this quarter
         else {
           // Extract value ranges for current quarter data
-          const ebitdaValues = currentData.map(d => d.ebitdaMargin);
-          const minEbitda = Math.min(...ebitdaValues);
-          const maxEbitda = Math.max(...ebitdaValues);
-          
-          const revenueValues = currentData.map(d => d.revenueGrowth);
-          const minRevenue = Math.min(...revenueValues);
-          const maxRevenue = Math.max(...revenueValues);
-          
-          // Add margins
-          const ebitdaMargin = Math.max(0.05, (maxEbitda - minEbitda) * 0.1);
-          const revenueMargin = Math.max(0.05, (maxRevenue - minRevenue) * 0.1);
-          
+          const ebitdaValues = currentData
+            .map(d => d.ebitdaMargin)
+            .filter(v => Number.isFinite(v));
+          const revenueValues = currentData
+            .map(d => d.revenueGrowth)
+            .filter(v => Number.isFinite(v));
+
+          const computeTrimmedDomain = (values, defaultDomain, label) => {
+            if (!values.length) {
+              console.warn(`No ${label} values found for domain calculation, using default range`);
+              return defaultDomain;
+            }
+
+            const sorted = [...values].sort((a, b) => a - b);
+            const lowerIndex = Math.floor(sorted.length * 0.05);
+            const upperIndex = Math.max(lowerIndex, Math.ceil(sorted.length * 0.95) - 1);
+
+            const trimmedMin = sorted[lowerIndex];
+            const trimmedMax = sorted[upperIndex];
+
+            if (trimmedMin !== sorted[0] || trimmedMax !== sorted[sorted.length - 1]) {
+              console.log(`Trimmed ${label} domain to mitigate outliers`, {
+                originalMin: (sorted[0] * 100).toFixed(1) + '%',
+                originalMax: (sorted[sorted.length - 1] * 100).toFixed(1) + '%',
+                trimmedMin: (trimmedMin * 100).toFixed(1) + '%',
+                trimmedMax: (trimmedMax * 100).toFixed(1) + '%'
+              });
+            }
+
+            const range = trimmedMax - trimmedMin;
+            const margin = Math.max(0.05, range * 0.1);
+
+            return [
+              Math.max(defaultDomain[0], trimmedMin - margin),
+              Math.min(defaultDomain[1], trimmedMax + margin)
+            ];
+          };
+ 
           // Check if current quarter data exceeds default range
           const defaultXDomain = DEFAULT_X_DOMAIN;
           const defaultYDomain = DEFAULT_Y_DOMAIN;
           
-          // Use default values unless data exceeds range
-          const currentXDomain = [
-            Math.min(defaultXDomain[0], minEbitda - ebitdaMargin),
-            Math.max(defaultXDomain[1], maxEbitda + ebitdaMargin)
-          ];
-          
-          const currentYDomain = [
-            Math.min(defaultYDomain[0], minRevenue - revenueMargin),
-            Math.max(defaultYDomain[1], maxRevenue + revenueMargin)
-          ];
-          
+          const currentXDomain = computeTrimmedDomain(ebitdaValues, defaultXDomain, 'EBITDA');
+          const currentYDomain = computeTrimmedDomain(revenueValues, defaultYDomain, 'Revenue Growth');
+
           // Save this calculated range for future reference
           quarterRanges.value[currentQuarter] = {
             xDomain: currentXDomain,
