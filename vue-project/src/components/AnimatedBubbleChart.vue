@@ -826,8 +826,10 @@ const processExcelData = (file) => {
       console.log('First row (headers):', jsonData[0]);
       
       // Get headers (company names) from first row, skip first column
-      const headers = jsonData[0].slice(1).map(h => h ? h.trim() : null).filter(Boolean);
-      console.log('Processed headers:', headers);
+      // 保留空表头以保持列索引与数据列对齐
+      const rawHeaderRow = jsonData[0] || [];
+      const headers = rawHeaderRow.slice(1).map(h => (h && String(h).trim()) || null);
+      console.log('Processed headers (length, including nulls):', headers.length, headers);
       
       // Initialize selected companies
       initializeSelectedCompanies();
