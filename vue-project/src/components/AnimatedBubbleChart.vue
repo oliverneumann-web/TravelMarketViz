@@ -586,6 +586,7 @@ const logoDict = {
   'KYAK': KYAK_LOGO,
   'eLong': ELONG_LOGO,
   'Tongcheng Travel': TONGCHENG_LOGO,
+  'eSky': ESKY_LOGO,
 };
 
 // Add company names mapping
