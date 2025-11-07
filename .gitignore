@@ -2,6 +2,7 @@
 output/
 **/frames/
 
+*.DS_Store
 # Image files
 *.png
 *.jpg
