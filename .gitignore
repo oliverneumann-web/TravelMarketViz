@@ -25,13 +25,13 @@ output/
 !logos/**/*.ico
 
 # Exception for vue-project/logos directory
-!vue-project/logos/**/*.png
-!vue-project/logos/**/*.jpg
-!vue-project/logos/**/*.jpeg
-!vue-project/logos/**/*.gif
-!vue-project/logos/**/*.bmp
-!vue-project/logos/**/*.tiff
-!vue-project/logos/**/*.ico
+!vue-project/src/logos/**/*.png
+!vue-project/src/logos/**/*.jpg
+!vue-project/src/logos/**/*.jpeg
+!vue-project/src/logos/**/*.gif
+!vue-project/src/logos/**/*.bmp
+!vue-project/src/logos/**/*.tiff
+!vue-project/src/logos/**/*.ico
 
 # Video files
 *.mp4
