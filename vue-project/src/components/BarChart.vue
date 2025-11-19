@@ -1,49 +1,7 @@
 <template>
   <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-semibold text-wego-gray">Bar Chart Revenue Analysis(in Millions)</h2>
-      <div class="flex items-center gap-4">
-        <Popover class="relative">
-          <PopoverButton class="inline-flex items-center gap-x-1 text-sm/6 font-semibold text-gray-900 px-4 py-2 bg-gray-50 rounded-lg hover:bg-gray-100">
-            <span>{{ currentPeriod || 'Select Quarter' }}</span>
-            <ChevronDownIcon class="size-5" aria-hidden="true" />
-          </PopoverButton>
-
-          <transition 
-            enter-active-class="transition ease-out duration-200" 
-            enter-from-class="opacity-0 translate-y-1" 
-            enter-to-class="opacity-100 translate-y-0" 
-            leave-active-class="transition ease-in duration-150" 
-            leave-from-class="opacity-100 translate-y-0" 
-            leave-to-class="opacity-0 translate-y-1"
-          >
-            <PopoverPanel class="absolute left-1/2 z-10 mt-5 flex w-screen max-w-min -translate-x-1/2 px-4">
-              <div class="w-48 shrink rounded-xl bg-white p-4 text-sm/6 font-semibold text-gray-900 shadow-lg ring-1 ring-gray-900/5 max-h-80 overflow-y-auto">
-                <a 
-                  v-for="period in periods.slice().reverse()" 
-                  :key="period"
-                  href="#"
-                  @click.prevent="selectPeriod(period)"
-                  class="block p-2 hover:text-wego-green"
-                  :class="{ 'text-wego-green': currentPeriod === period }"
-                >
-                  {{ period }}
-                </a>
-              </div>
-            </PopoverPanel>
-          </transition>
-        </Popover>
-        <!-- <button 
-          @click="saveChart"
-          class="px-4 py-2 bg-wego-green text-white rounded hover:bg-wego-green-dark flex items-center gap-2"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h-2v5.586l-1.293-1.293z" />
-            <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
-          </svg>
-          Save Chart
-        </button> -->
-      </div>
+      <h2 class="text-xl font-semibold text-wego-gray">Bar Chart Revenue Analysis (TTM, in Millions)</h2>
     </div>
     <div ref="chartContainer" class="h-[840px]"></div>
   </div>
@@ -51,117 +9,38 @@
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
-import { Popover, PopoverButton, PopoverPanel } from '@headlessui/vue'
-import { ChevronDownIcon } from '@heroicons/vue/20/solid'
 import * as d3 from 'd3'
 import Papa from 'papaparse'
+import { companyNames, getCompanyColor, getCompanyLogo } from '../data/companyMeta'
+
+// Define props to receive current period and selected companies from parent
+const props = defineProps({
+  currentPeriod: {
+    type: String,
+    default: ''
+  },
+  selectedCompanies: {
+    type: Object,
+    default: () => ({})
+  }
+})
 
 const chartContainer = ref(null)
 const chartData = ref([])
 const periods = ref([])
-const currentPeriodIndex = ref(0)
-const currentPeriod = ref('')
 
-// Company colors mapping
-const companyColors = {
-  'BKNG': '#2557A7',  // Booking Holdings - Dark Blue
-  'EXPE': '#00A4BB',  // Expedia - Teal
-  'TCOM': '#003580',  // Trip.com - Navy Blue
-  'ABNB': '#FF5A5F',  // Airbnb - Coral Red
-  'TRIP': '#34E0A1',  // TripAdvisor - Mint Green
-  'TRVG': '#007FAD',  // Trivago - Light Blue
-  'EDR': '#FF6B6B',   // eDreams - Coral
-  'DESP': '#4A90E2',  // Despegar - Sky Blue
-  'MMYT': '#F5A623',  // MakeMyTrip - Orange
-  'Ixigo': '#7ED321',  // Ixigo - Green
-  'SEERA': '#9013FE',  // Seera - Purple
-  'Webjet': '#4A4A4A',  // Webjet - Dark Gray
-  'LMN': '#50E3C2',    // Lastminute - Turquoise
-  'Yatra': '#B8E986',  // Yatra - Light Green
-  'Orbitz': '#F5A623',  // Orbitz - Orange
-  'Travelocity': '#D0021B',  // Travelocity - Red
-  'EaseMyTrip': '#417505',  // EaseMyTrip - Dark Green
-  'Wego': '#10B981',   // Wego - Original Green
-  'Skyscanner': '#0770E3',  // Skyscanner - Blue
-  'Etraveli': '#BD10E0',  // Etraveli - Purple
-  'Kiwi': '#00A651',   // Kiwi - Green
-  'Cleartrip': '#1BA0E2',  // Cleartrip - Light Blue
-  'FLT': '#D35400',    // Flight Centre - Orange
-  'Almosafer': '#8E44AD',  // Almosafer - Purple
-  'Webjet OTA': '#2C3E50',  // Webjet OTA - Dark Blue
-  'Tongcheng Travel': '#5b318f',
-}
-
-// Default color for companies without specific colors
-const defaultColor = '#10B981'  // Wego green as default
-
-// Function to get color for a company
-const getCompanyColor = (company) => companyColors[company] || defaultColor
-
-// Company names mapping (reuse from App.vue)
-const companyNames = {
-  'ABNB': 'Airbnb',
-  'BKNG': 'Booking.com',
-  'EXPE': 'Expedia',
-  'TCOM': 'Trip.com',
-  'TRIP': 'TripAdvisor',
-  'TRVG': 'Trivago',
-  'EDR': 'Edreams',
-  'DESP': 'Despegar',
-  'MMYT': 'MakeMyTrip',
-  'Ixigo': 'Ixigo',
-  'SEERA': 'Seera Group',
-  'Webjet': 'Webjet',
-  'LMN': 'Lastminute',
-  'Yatra': 'Yatra.com',
-  'Orbitz': 'Orbitz',
-  'Travelocity': 'Travelocity',
-  'EaseMyTrip': 'EaseMyTrip',
-  'Wego': 'Wego',
-  'Skyscanner': 'Skyscanner',
-  'Etraveli': 'Etraveli',
-  'Kiwi': 'Kiwi',
-  'Cleartrip': 'Cleartrip',
-  'FLT': 'Flight Centre',
-  'Almosafer': 'Almosafer',
-  'Webjet OTA': 'Webjet OTA',
-  'Tongcheng Travel': 'Tongcheng Travel',
-  'eSky': 'eSky',
+// Helper function to check if component is visible (v-show)
+const isComponentVisible = () => {
+  if (!chartContainer.value) return false;
+  // Check if element is visible (v-show sets display:none when hidden)
+  return chartContainer.value.offsetParent !== null;
 };
 
-// Add new imports for logos
-const logoImports = {
-  'ABNB': new URL('/logos/ABNB_temp_logo.png', import.meta.url).href,
-  'BKNG': new URL('/logos/BKNG_temp_logo.png', import.meta.url).href,
-  'EXPE': new URL('/logos/Expedia2.jpg', import.meta.url).href,
-  'TCOM': new URL('/logos/TCOM_temp_logo.png', import.meta.url).href,
-  'TRIP': new URL('/logos/TRIP_temp_logo.png', import.meta.url).href,
-  'TRVG': new URL('/logos/Trivago1.jpg', import.meta.url).href,
-  'EDR': new URL('/logos/EDR_temp_logo.png', import.meta.url).href,
-  'DESP': new URL('/logos/DESP_temp_logo.png', import.meta.url).href,
-  'MMYT': new URL('/logos/MMYT_temp_logo.png', import.meta.url).href,
-  'Ixigo': new URL('/logos/Ixigo_temp_logo.png', import.meta.url).href,
-  'SEERA': new URL('/logos/SEERA_temp_logo.png', import.meta.url).href,
-  'Webjet': new URL('/logos/Webjet_temp_logo.png', import.meta.url).href,
-  'LMN': new URL('/logos/LMN_temp_logo.png', import.meta.url).href,
-  'Yatra': new URL('/logos/Yatra_temp_logo.png', import.meta.url).href,
-  'Orbitz': new URL('/logos/Orbitz1.png', import.meta.url).href,
-  'Travelocity': new URL('/logos/Travelocity_logo.png', import.meta.url).href,
-  'EaseMyTrip': new URL('/logos/EaseMyTrip_temp_logo.png', import.meta.url).href,
-  'Wego': new URL('/logos/Wego_logo.png', import.meta.url).href,
-  'Skyscanner': new URL('/logos/Skyscanner_temp_logo.png', import.meta.url).href,
-  'Etraveli': new URL('/logos/Etraveli_temp_logo.png', import.meta.url).href,
-  'Kiwi': new URL('/logos/Kiwi_temp_logo.png', import.meta.url).href,
-  'Cleartrip': new URL('/logos/Cleartrip_temp_logo.png', import.meta.url).href,
-  'FLT': new URL('/logos/FLT_temp_logo.png', import.meta.url).href,
-  'Almosafer': new URL('/logos/Almosafer_temp_logo.png', import.meta.url).href,
-  'Webjet OTA': new URL('/logos/Webjet_OTA_temp_logo.png', import.meta.url).href,
-  'Tongcheng Travel': new URL('/logos/Tongcheng_logo.png', import.meta.url).href
-
-}
+// company colors, names, and logos are centralized in src/data/companyMeta.js
 
 const importFromGoogleSheet = async () => {
   // Google Sheets ID and GID for bar chart data
+  // open in browser: https://docs.google.com/spreadsheets/d/e/2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9/pub?gid=621483928
   const sheetId = '2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9'
   const gid = '621483928'
   const sheetUrl = `https://docs.google.com/spreadsheets/d/e/${sheetId}/pub?gid=${gid}&output=csv`
@@ -201,82 +80,104 @@ const importFromGoogleSheet = async () => {
     periods.value = [...new Set(chartData.value.map(d => d.period))]
     console.log('Available periods:', periods.value)
     
-    currentPeriod.value = periods.value[currentPeriodIndex.value]
-    console.log('Current period:', currentPeriod.value)
-    
-    // Initial render
-    console.log('Calling renderChart...')
-    renderChart()
+    // Initial render will be triggered by watch on props.currentPeriod
+    console.log('Data loaded, waiting for currentPeriod prop...')
   } catch (error) {
     console.error('Error importing from Google Sheet:', error)
   }
 }
 
 const processData = (rawData) => {
-  // Transform the data into the format needed for the bar chart
   const result = [];
-  
+  const quarterPattern = /^\d{4}'Q[1-4]$/;
+
   console.log('Processing raw data:', {
     totalRows: rawData.length,
     firstRow: rawData[0],
     secondRow: rawData[1]
   });
-  
-  // Skip the first row (headers)
-  for (let i = 1; i < rawData.length; i++) {
+
+  const revenueTtmIndex = rawData.findIndex(row => {
+    if (!row) return false;
+    const label = typeof row[''] === 'string' ? row[''].trim() : row[''];
+    return label === 'Revenue TTM';
+  });
+
+  const dataStartIndex = revenueTtmIndex >= 0 ? revenueTtmIndex + 1 : 1;
+  if (revenueTtmIndex === -1) {
+    console.warn('Revenue TTM row not found. Processing all rows after header.');
+  } else {
+    console.log('Revenue TTM row found at index:', revenueTtmIndex, 'Data starts at:', dataStartIndex);
+  }
+
+  for (let i = dataStartIndex; i < rawData.length; i++) {
     const row = rawData[i];
-    const period = row[''];  // Empty string is the period column
-    
-    // Skip the "Revenue" row
-    if (period === 'Revenue') {
-      console.log('Skipping Revenue row:', row);
+    if (!row) continue;
+
+    const periodRaw = row[''];
+    if (!periodRaw) continue;
+    const period = periodRaw.toString().trim();
+    if (!quarterPattern.test(period)) {
+      console.log('Skipping non-quarter row:', periodRaw);
       continue;
     }
-    
-    // Process each company's data
+
     Object.entries(row).forEach(([company, value]) => {
-      // Skip the period column and empty values
-      if (company === '' || !value || value === '') return;
-      
-      // Clean up the value string and convert to number
+      if (company === '' || company === undefined || company === null) return; // skip period column
+      if (value === undefined || value === null || value === '') return;
+
       const cleanValue = value.toString().trim().replace(/[$,\s]/g, '');
       const numValue = parseFloat(cleanValue);
-      
-      if (!isNaN(numValue) && numValue > 0) {
-        result.push({
-          period,
-          company,
-          value: numValue
-        });
-      } else {
-        console.log(`Skipping invalid value for ${company} in ${period}:`, value);
-      }
+      if (!Number.isFinite(numValue) || numValue <= 0) return;
+
+      result.push({
+        period,
+        company,
+        value: numValue
+      });
     });
   }
-  
+
   console.log('Processed data summary:', {
     totalItems: result.length,
     uniquePeriods: [...new Set(result.map(d => d.period))],
     uniqueCompanies: [...new Set(result.map(d => d.company))],
     sample: result.slice(0, 5)
   });
-  
+
   return result;
 }
 
-const renderChart = () => {
-  console.log('renderChart called')
+const renderChart = (forceRender = false) => {
+  console.log('renderChart called for period:', props.currentPeriod, 'forceRender:', forceRender)
+  
+  // Check if component is visible before rendering (unless forced)
+  if (!forceRender && !isComponentVisible()) {
+    console.log('BarChart not visible, skipping render')
+    return
+  }
+  
   if (!chartContainer.value) {
     console.error('Chart container not found')
+    return
+  }
+  
+  if (!props.currentPeriod) {
+    console.warn('No current period specified')
     return
   }
   
   // Clear previous chart
   d3.select(chartContainer.value).selectAll('*').remove()
   
-  // Filter data for current period
+  // Filter data for current period and selected companies
   const currentData = chartData.value
-    .filter(d => d.period === periods.value[currentPeriodIndex.value])
+    .filter(d => {
+      const isPeriodMatch = d.period === props.currentPeriod;
+      const isCompanySelected = Object.keys(props.selectedCompanies).length === 0 || 
+                                props.selectedCompanies[d.company] === true;
+      return isPeriodMatch && isCompanySelected;
+    })
     .sort((a, b) => b.value - a.value)
     .slice(0, 15) // Show top 15 companies
   
@@ -302,9 +203,16 @@ const renderChart = () => {
     .append('g')
     .attr('transform', `translate(${margin.left},${margin.top})`)
   
-  // Set up scales
+  // Set up scales - support both positive and negative values
+  const minValue = d3.min(currentData, d => d.value) || 0;
+  const maxValue = d3.max(currentData, d => d.value) || 0;
+  
+  // Add 10% padding on both sides
+  const domainMin = minValue < 0 ? minValue * 1.1 : 0;
+  const domainMax = maxValue > 0 ? maxValue * 1.1 : 0;
+  
   const x = d3.scaleLinear()
-    .domain([0, d3.max(currentData, d => d.value) * 1.1]) // Add 10% padding
+    .domain([domainMin, domainMax])
     .range([0, width])
   
   // Set fixed spacing between bars
@@ -329,15 +237,16 @@ const renderChart = () => {
     .attr('height', svgHeight)
   
   // Update bar positions with fixed spacing
+  // For negative values, bars extend left from 0; for positive values, bars extend right from 0
   const bars = svg.selectAll('rect')
     .data(currentData)
     .enter()
     .append('rect')
     .attr('y', (d, i) => i * (barHeight + fixedBarSpacing))
     .attr('height', barHeight)
-    .attr('x', 0)
-    .attr('width', d => x(d.value))
-    .attr('fill', d => getCompanyColor(d.company))
+    .attr('x', d => d.value < 0 ? x(d.value) : x(0))
+    .attr('width', d => Math.abs(x(d.value) - x(0)))
+    .attr('fill', d => d.value < 0 ? '#ef4444' : getCompanyColor(d.company)) // Red for negative values
     .attr('rx', 6)
     .attr('ry', 6)
     .style('opacity', 0.85)
@@ -376,12 +285,14 @@ const renderChart = () => {
     .enter()
     .append('text')
     .attr('class', 'value-label')
-    .attr('x', d => x(d.value) + 5)
+    .attr('x', d => Math.max(x(0), x(d.value)) + 5)  // Always at the right end of the bar
     .attr('y', (d, i) => i * (barHeight + fixedBarSpacing) + barHeight / 2)
     .attr('dy', '0.35em')
+    .attr('text-anchor', 'start')  // Always left-aligned
     .text(d => d3.format(',.0f')(d.value))
-    .attr('fill', '#6B7280')
+    .attr('fill', d => d.value < 0 ? '#dc2626' : '#6B7280')
     .style('font-size', '13px')
+    .style('font-weight', d => d.value < 0 ? '600' : 'normal')
   
   const logoSize = 120
   const logos = svg.selectAll('.company-logo')
@@ -389,23 +300,31 @@ const renderChart = () => {
     .enter()
     .append('image')
     .attr('class', 'company-logo')
-    .attr('x', d => x(d.value) + 60)
+    .attr('x', d => Math.max(x(0), x(d.value)) + 60)  // Always to the right of the bar
     .attr('y', (d, i) => i * (barHeight + fixedBarSpacing) + (barHeight - logoSize) / 2)
     .attr('width', logoSize)
     .attr('height', logoSize)
     .attr('preserveAspectRatio', 'xMidYMid meet')
     .attr('data-company', d => d.company)
-    .attr('href', d => logoImports[d.company] || '')
+    .attr('href', d => getCompanyLogo(d.company) || '')
     .on('error', function() {
       // If logo fails to load, just remove it
       d3.select(this).remove()
     })
-}
-
-const selectPeriod = (period) => {
-  currentPeriod.value = period
-  currentPeriodIndex.value = periods.value.indexOf(period)
-  renderChart()
+  
+  // Add zero line if there are negative values
+  if (minValue < 0) {
+    svg.append('line')
+      .attr('class', 'zero-line')
+      .attr('x1', x(0))
+      .attr('y1', 0)
+      .attr('x2', x(0))
+      .attr('y2', totalHeight)
+      .attr('stroke', '#4e843d')
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '4,4')
+      .attr('opacity', 0.6)
+  }
 }
 
 const saveChart = async () => {
@@ -467,7 +386,7 @@ const saveChart = async () => {
           resolve()
         }
         const company = logo.getAttribute('data-company')
-        img.src = logoImports[company] || ''
+        img.src = getCompanyLogo(company) || ''
       })
       logoPromises.push(logoPromise)
     })
@@ -498,29 +417,47 @@ window.addEventListener('resize', () => {
   resizeTimeout = setTimeout(renderChart, 250)
 })
 
-// Add watcher for chartData
-watch(chartData, (newData) => {
-  console.log('chartData changed:', newData.length)
-  if (newData.length > 0) {
+// Watch for currentPeriod prop changes
+watch(() => props.currentPeriod, (newPeriod) => {
+  console.log('currentPeriod prop changed:', newPeriod)
+  if (newPeriod && chartData.value.length > 0) {
     renderChart()
   }
-})
+}, { immediate: true })  // Add immediate option to run on initial mount
 
-// Add watcher for currentPeriodIndex
-watch(currentPeriodIndex, (newIndex) => {
-  console.log('currentPeriodIndex changed:', newIndex)
-  currentPeriod.value = periods.value[newIndex]
-  renderChart()
+// Watch for selectedCompanies prop changes
+watch(() => props.selectedCompanies, (newSelection) => {
+  console.log('selectedCompanies prop changed in BarChart:', newSelection)
+  if (props.currentPeriod && chartData.value.length > 0) {
+    console.log('Auto-refreshing BarChart due to company selection change')
+    renderChart()
+  }
+}, { deep: true })
+
+// Watch for chartData changes (initial load)
+watch(chartData, (newData) => {
+  console.log('chartData changed:', newData.length)
+  if (newData.length > 0 && props.currentPeriod) {
+    renderChart()
+  }
 })
 
 onMounted(async () => {
   console.log('BarChart component mounted')
   await importFromGoogleSheet()
   
-  // Set default period to 2024'Q4
-  const defaultPeriod = "2024'Q4"
-  if (periods.value.includes(defaultPeriod)) {
-    selectPeriod(defaultPeriod)
+  // After data is loaded, check if we need to render
+  if (props.currentPeriod && chartData.value.length > 0) {
+    console.log('Initial render with existing period:', props.currentPeriod)
+    renderChart()
+  }
+})
+
+defineExpose({
+  refresh: () => {
+    console.log('BarChart refresh called, forcing render');
+    // Force render without visibility check since this is explicitly called
+    renderChart(true);
   }
 })
 </script>

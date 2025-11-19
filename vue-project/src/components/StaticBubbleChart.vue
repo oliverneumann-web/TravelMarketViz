@@ -5,7 +5,7 @@
         @click="toggleDataDisplay"
         class="px-4 py-2 bg-wego-green text-white rounded hover:bg-wego-green-dark flex items-center gap-2"
       >
-        {{ showLabels ? 'Show Dots' : 'Show Labels' }}
+        {{ showLabels ? 'Only Show Dots' : 'Show Labels' }}
       </button>
       <button 
         @click="saveChart"
@@ -67,116 +67,7 @@
 import { onMounted, ref } from 'vue';
 import * as d3 from 'd3';
 import * as XLSX from 'xlsx';
-
-// Import all logos
-import ABNB_LOGO from '/logos/ABNB_logo.png'
-import BKNG_LOGO from '/logos/BKNG_logo.png'
-import EXPE_LOGO from '/logos/EXPE_logo.png'
-import TCOM_LOGO from '/logos/TCOM_logo.png'
-import TRIP_LOGO from '/logos/TRIP_logo.png'
-import TRVG_LOGO from '/logos/TRVG_logo.png'
-import EDR_LOGO from '/logos/EDR_logo.png'
-import DESP_LOGO from '/logos/DESP_logo.png'
-import MMYT_LOGO from '/logos/MMYT_logo.png'
-import IXIGO_LOGO from '/logos/IXIGO_logo.png'
-import LMN_LOGO from '/logos/LMN_logo.png'
-import YTRA_LOGO from '/logos/YTRA_logo.png'
-import OWW_LOGO from '/logos/OWW_logo.png'
-import TRAVELOCITY_LOGO from '/logos/Travelocity_logo.png'
-import EASEMYTRIP_LOGO from '/logos/EASEMYTRIP_logo.png'
-import WEGO_LOGO from '/logos/Wego_logo.png'
-import SKYSCANNER_LOGO from '/logos/Skyscanner_logo.png'
-import ETRAVELI_LOGO from '/logos/Etraveli_logo.png'
-import KIWI_LOGO from '/logos/Kiwi_logo.png'
-import CLEARTRIP_LOGO from '/logos/Cleartrip_logo.png'
-import TRAVELOKA_LOGO from '/logos/Traveloka_logo.png'
-import FLIGHTCENTRE_LOGO from '/logos/FlightCentre_logo.png'
-import SEERA_LOGO from '/logos/SEERA_logo.png'
-
-// Add new logo imports after existing imports
-import ALMOSAFER_LOGO from '/logos/Almosafer_logo.png'
-import OTA_LOGO from '/logos/OTA_logo.png'
-
-const colorDict = {
-  'ABNB': '#ff5895',
-  'Almosafer': '#bb5387',
-  'BKNG': '#003480',
-  'DESP': '#755bd8',
-  'EXPE': '#fbcc33',
-  'EaseMyTrip': '#00a0e2',
-  'Ixigo': '#e74c3c',
-  'MMYT': '#e74c3c',
-  'TRIP': '#00af87',
-  'TRVG': '#e74c3c',
-  'Wego': '#4e843d',
-  'Yatra': '#e74c3c',
-  'TCOM': '#2577e3',
-  'EDR': '#2577e3',
-  'LMN': '#fc03b1',
-  'PCLN': '#003480',
-  'Orbitz': '#8edbfa',
-  'Travelocity': '#1d3e5c',
-  'Skyscanner': '#0770e3',
-  'Etraveli': '#b2e9ff',
-  'Kiwi': '#e5fdd4',
-  'Cleartrip': '#e74c3c',
-  'Traveloka': '#38a0e2',
-  'FLT': '#d2b6a8',
-  'Webjet OTA': '#e74c3c'
-};
-
-const logoDict = {
-  'ABNB': ABNB_LOGO,
-  'BKNG': BKNG_LOGO,
-  'EXPE': EXPE_LOGO,
-  'TCOM': TCOM_LOGO,
-  'TRIP': TRIP_LOGO,
-  'TRVG': TRVG_LOGO,
-  'EDR': EDR_LOGO,
-  'DESP': DESP_LOGO,
-  'MMYT': MMYT_LOGO,
-  'Ixigo': IXIGO_LOGO,
-  'LMN': LMN_LOGO,
-  'Yatra': YTRA_LOGO,
-  'Orbitz': OWW_LOGO,
-  'Travelocity': TRAVELOCITY_LOGO,
-  'EaseMyTrip': EASEMYTRIP_LOGO,
-  'Wego': WEGO_LOGO,
-  'Skyscanner': SKYSCANNER_LOGO,
-  'Etraveli': ETRAVELI_LOGO,
-  'Kiwi': KIWI_LOGO,
-  'Cleartrip': CLEARTRIP_LOGO,
-  'Traveloka': TRAVELOKA_LOGO,
-  'FLT': FLIGHTCENTRE_LOGO,
-  'Almosafer': ALMOSAFER_LOGO,
-  'Webjet OTA': OTA_LOGO
-};
-
-const companyNames = {
-  'ABNB': 'Airbnb',
-  'BKNG': 'Booking.com',
-  'EXPE': 'Expedia',
-  'TCOM': 'Trip.com',
-  'TRIP': 'TripAdvisor',
-  'TRVG': 'Trivago',
-  'EDR': 'Edreams',
-  'DESP': 'Despegar',
-  'MMYT': 'MakeMyTrip',
-  'Ixigo': 'Ixigo',
-  'LMN': 'Lastminute',
-  'Yatra': 'Yatra.com',
-  'Orbitz': 'Orbitz',
-  'Travelocity': 'Travelocity',
-  'EaseMyTrip': 'EaseMyTrip',
-  'Wego': 'Wego',
-  'Skyscanner': 'Skyscanner',
-  'Etraveli': 'Etraveli',
-  'Kiwi': 'Kiwi',
-  'Cleartrip': 'Cleartrip',
-  'FLT': 'Flight Centre',
-  'Almosafer': 'Almosafer',
-  'Webjet OTA': 'Webjet OTA'
-};
+import { getCompanyColor, getCompanyLogo } from '../data/companyMeta';
 
 let chartData = ref([]);
 
@@ -431,8 +322,8 @@ const initChart = () => {
         company: d.company,
         ebitdaMargin: d.ebitdaMargin,
         revenueGrowth: d.revenueGrowth,
-        hasLogo: !!logoDict[d.company],
-        color: colorDict[d.company]
+        hasLogo: !!getCompanyLogo(d.company),
+        color: getCompanyColor(d.company)
       });
     });
     
@@ -530,7 +421,7 @@ const initChart = () => {
           .attr('text-anchor', 'middle')
           .attr('dy', '0.35em')
           .style('font-size', '12px')
-          .style('fill', colorDict[d.company] || '#000')
+          .style('fill', getCompanyColor(d.company))
           .text(`${(d.revenueGrowth * 100).toFixed(1)}% / ${(d.ebitdaMargin * 100).toFixed(1)}%`);
       } else {
         // Add dot
@@ -539,13 +430,14 @@ const initChart = () => {
           .attr('cx', xScale(d.ebitdaMargin))
           .attr('cy', yScale(d.revenueGrowth))
           .attr('r', 6)
-          .style('fill', colorDict[d.company] || '#000')
+          .style('fill', getCompanyColor(d.company))
           .style('stroke', 'white')
           .style('stroke-width', '2px');
       }
 
       // Add logo if available
-      if (logoDict[d.company]) {
+      const logoSrc = getCompanyLogo(d.company);
+      if (logoSrc) {
         const img = new Image();
         img.onload = () => {
           // Create a group for the logo to make dragging more stable
@@ -563,7 +455,7 @@ const initChart = () => {
             .attr('class', 'logo')
             .attr('width', logoSize)
             .attr('height', logoSize)
-            .attr('xlink:href', logoDict[d.company])
+            .attr('xlink:href', logoSrc)
             .attr('x', x)
             .attr('y', y);
 
@@ -598,7 +490,7 @@ const initChart = () => {
                 .attr('y', currentY + dy);
             }));
         };
-        img.src = logoDict[d.company];
+        img.src = logoSrc;
       }
     });
 

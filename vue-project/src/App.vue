@@ -16,7 +16,7 @@
         <a v-for="(item, itemIdx) in navigation" 
            :key="itemIdx" 
            :href="item.href"
-           @click.prevent="currentView = item.href.substring(1)"
+           @click.prevent="handleNavigationClick(item.href.substring(1))"
            :class="{ 'text-wego-green': currentView === item.href.substring(1) }">
           {{ item.name }}
         </a>
@@ -35,8 +35,51 @@
 
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <!-- Dynamic content based on current view -->
-        <template v-if="currentView === 'bubble-chart'">
-          <!-- Current Company Details -->
+        <div v-show="currentView === 'bubble-chart'">
+          <!-- Company Selection Filter -->
+          <div v-if="bubbleChartCompanies.length > 0" class="bg-white rounded-lg shadow-lg p-6 mb-8">
+          <div class="grid grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-3">
+            <div>
+                <h2 class="text-base/7 font-semibold text-gray-900">Companies Filter</h2>
+              <p class="mt-1 text-sm/6 text-gray-600">
+                  Select which companies to display on the chart. Changes apply immediately.
+              </p>
+            </div>
+
+            <div class="max-w-2xl space-y-10 md:col-span-2">
+              <fieldset>
+                <div class="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200 max-h-60 overflow-y-auto">
+                    <div v-for="(company, index) in bubbleChartCompanies" 
+                         :key="`company-filter-${index}-${company}`" 
+                       class="relative flex gap-3 py-2 cursor-pointer hover:bg-gray-50"
+                         @click.stop.prevent="toggleBubbleCompanyFilter(company)"
+                       @mousedown.stop>
+                    <div class="min-w-0 flex-1 text-sm/6">
+                      <span class="select-none font-medium text-gray-900">
+                          {{ companyNames[company] || company }}
+                      </span>
+                    </div>
+                    <div class="flex h-6 shrink-0 items-center">
+                      <div class="group grid size-4 grid-cols-1">
+                        <input 
+                          type="checkbox" 
+                            :checked="bubbleCompanyFilter[company] === true"
+                          class="col-start-1 row-start-1 appearance-none rounded border border-gray-300 bg-white checked:border-wego-green checked:bg-wego-green focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wego-green disabled:border-gray-300 disabled:bg-gray-100 disabled:checked:bg-gray-100 forced-colors:appearance-auto pointer-events-none"
+                          readonly
+                        />
+                        <svg class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-white group-has-[:disabled]:stroke-gray-950/25" viewBox="0 0 14 14" fill="none">
+                          <path class="opacity-0 group-has-[:checked]:opacity-100" d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+        </div>
+
+          <!-- Market Performance Chart -->
           <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
             <div class="flex justify-between items-center mb-4">
               <h2 class="text-xl font-semibold text-wego-gray">Market Performance Over Time</h2>
@@ -74,12 +117,15 @@
             </div>
             <AnimatedBubbleChart 
               ref="bubbleChartRef" 
-              class="h-[840px]" 
+              class="h-[840px]"
+              :company-filter="bubbleCompanyFilter"
               @data-update="handleDataUpdate"
               @company-select="handleCompanySelect"
               @quarters-loaded="handleQuartersLoaded"
+              @companies-loaded="handleBubbleCompaniesLoaded"
             />
           </div>
+          
           <!-- Selected Company -->
           <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
             <div class="flex justify-between items-center mb-4">
@@ -158,11 +204,41 @@
               No data available for the current quarter. Please interact with the chart above.
             </div>
           </div>
-        </template>
+        </div>
 
-        <template v-else-if="currentView === 'bar-chart'">
-          <BarChart />
-        </template>
+        <div v-show="currentView === 'bar-chart'">
+          <!-- Timeline Slider for Bar Chart -->
+          <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-wego-gray">Bar Chart Revenue Analysis</h2>
+            </div>
+            <div class="mb-6">
+              <div class="slider-container bg-gray-50 rounded-lg p-4">
+                <div class="flex justify-between items-center mb-4">
+                  <span class="text-sm font-medium text-gray-500">Current Period:</span>
+                  <span class="text-lg font-semibold text-gray-900">{{ currentQuarter }}</span>
+                </div>
+                <input 
+                  type="range" 
+                  :min="0" 
+                  :max="quarters.length - 1" 
+                  v-model="currentQuarterIndex"
+                  @input="handleSliderChange"
+                  :style="{ '--range-progress': `${(currentQuarterIndex / (quarters.length - 1)) * 100}%` }"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                >
+                <div class="flex justify-between mt-2">
+                  <span class="text-sm text-gray-500">{{ quarters[0] || '' }}</span>
+                  <span class="text-sm text-gray-500">{{ quarters[quarters.length - 1] || '' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <BarChart 
+            ref="barChartRef" 
+            :current-period="currentQuarter"
+          />
+        </div>
 
         <!-- Static 2024Q3 Chart -->
         <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -207,7 +283,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { Dialog, DialogPanel } from '@headlessui/vue'
 import {
   ArrowDownCircleIcon,
@@ -220,50 +296,44 @@ import AnimatedBubbleChart from './components/AnimatedBubbleChart.vue'
 import StaticBubbleChart from './components/StaticBubbleChart.vue'
 import BarChart from './components/BarChart.vue'
 import * as XLSX from 'xlsx'
-import WEGO_LOGO from '/logos/Wego_logo.png'
+import WEGO_LOGO from './logos/Wego_logo.png'
 import { inject } from '@vercel/analytics'
 import Papa from 'papaparse'
+import { companyNames } from './data/companyMeta'
 
 const currentView = ref('bubble-chart')
+const viewChangeEvent = ref(0) // Event bus using ref counter
+
+// Handle navigation click - simple view switch
+const handleNavigationClick = (newView) => {
+  if (currentView.value === newView) return;
+  console.log(`Switching view to: ${newView}`);
+  
+  // Stop all D3 transitions in AnimatedBubbleChart before switching
+  if (bubbleChartRef.value?.stopAllTransitions) {
+    bubbleChartRef.value.stopAllTransitions();
+  }
+  
+  // Use setTimeout to break out of current execution context
+  // This ensures all pending D3 operations are completely finished
+  setTimeout(() => {
+    console.log(`Executing view change to: ${newView}`);
+    currentView.value = newView;
+    
+    // After Vue updates DOM, trigger event for charts to render
+    nextTick(() => {
+      viewChangeEvent.value++; // Increment to trigger watchers
+      console.log(`View switch complete, event triggered: ${viewChangeEvent.value}`);
+    });
+  }, 0);
+}
+
 const bubbleChartRef = ref(null)
+const barChartRef = ref(null)
 const staticBubbleChartRef = ref(null)
 const mobileMenuOpen = ref(false)
 const excelData = ref([])
 const rawData = ref([])
-
-// Add company names mapping
-const companyNames = {
-  'ABNB': 'Airbnb',
-  'BKNG': 'Booking.com',
-  'EXPE': 'Expedia',
-  'TCOM': 'Trip.com',
-  'TRIP': 'TripAdvisor',
-  'TRVG': 'Trivago',
-  'EDR': 'Edreams',
-  'DESP': 'Despegar',
-  'MMYT': 'MakeMyTrip',
-  'Ixigo': 'Ixigo',
-  'SEERA': 'Seera Group',
-  'Webjet': 'Webjet',
-  'LMN': 'Lastminute',
-  'Yatra': 'Yatra.com',
-  'Orbitz': 'Orbitz',
-  'Travelocity': 'Travelocity',
-  'EaseMyTrip': 'EaseMyTrip',
-  'Wego': 'Wego',
-  'Skyscanner': 'Skyscanner',
-  'Etraveli': 'Etraveli',
-  'Kiwi': 'Kiwi',
-  'Cleartrip': 'Cleartrip',
-  'FLT': 'Flight Centre',
-  'Almosafer': 'Almosafer',
-  'Webjet OTA': 'Webjet OTA',
-  'Traveloka': 'Traveloka',
-  'KYAK': 'KYAK',
-  'eLONG': 'eLONG',
-  'Tongcheng Travel': 'Tongcheng Travel',
-  'eSky': 'eSky', 
-};
 
 const navigation = [
   { name: 'Bubble Chart', href: '#bubble-chart' },
@@ -396,6 +466,8 @@ const getCellStyle = (value, columnIndex) => {
 
 const importFromGoogleSheet = async () => {
   // Google Sheets ID and GID
+  // open in browser: https://docs.google.com/spreadsheets/d/e/2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9/pub?gid=1144102204
+  // remove the 'output=csv' from the url to open the sheet instead of downloading it as a csv file
   const sheetId = '2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9';
   const gid = '1144102204';
   const sheetUrl = `https://docs.google.com/spreadsheets/d/e/${sheetId}/pub?gid=${gid}&output=csv`;
@@ -438,17 +510,6 @@ const importFromGoogleSheet = async () => {
       row[0] && String(row[0]) === 'Rev Growth YoY'
     );
     
-    // Add debug logging for the rows after Revenue Growth
-    console.log('=== Debug: Rows after Revenue Growth ===');
-    for (let i = revenueGrowthRowIndex + 1; i < revenueGrowthRowIndex + 10; i++) {
-      if (i < rows.length) {
-        console.log(`Row ${i}:`, rows[i]);
-        if (rows[i] && rows[i][0]) {
-          console.log(`First column of row ${i}:`, rows[i][0], 'isValidQuarter:', isValidQuarter(rows[i][0]));
-        }
-      }
-    }
-    
     // Find EBITDA Margin row
     const ebitdaStartIndex = rows.findIndex(row => 
       row && row[0] && String(row[0]) === 'EBITDA Margin % Quarterly'
@@ -462,6 +523,61 @@ const importFromGoogleSheet = async () => {
       throw new Error('未找到 EBITDA Margin 数据行');
     }
     
+    // Get headers (company names)
+    const headers = rows[0];
+    console.log('Original headers:', headers);
+    
+    // Remove duplicate columns and empty columns with no data
+    const seenHeaders = new Set();
+    const columnsToKeep = [];
+    
+    headers.forEach((header, colIndex) => {
+      const headerKey = String(header || '').trim();
+      
+      // Check if column has any data (excluding header row)
+      const hasData = rows.slice(1).some(row => {
+        const cell = row[colIndex];
+        if (cell === null || cell === undefined) return false;
+        if (typeof cell === 'number') return true;
+        return String(cell).trim() !== '';
+      });
+      
+      // Keep column if:
+      // 1. Header is not empty AND (not duplicate OR is first occurrence)
+      // 2. OR header is empty but column has data
+      if (headerKey === '') {
+        // Empty header: keep only if column has data
+        if (hasData) {
+          columnsToKeep.push(colIndex);
+          console.log(`Keeping empty header column at index ${colIndex} (has data)`);
+        } else {
+          console.log(`Dropping empty column at index ${colIndex} (no data)`);
+        }
+      } else {
+        // Non-empty header: check for duplicates
+        if (!seenHeaders.has(headerKey)) {
+          seenHeaders.add(headerKey);
+          columnsToKeep.push(colIndex);
+        } else {
+          console.log(`Dropping duplicate column at index ${colIndex}: "${headerKey}"`);
+        }
+      }
+    });
+    
+    console.log(`Kept ${columnsToKeep.length} columns out of ${headers.length} (dropped ${headers.length - columnsToKeep.length})`);
+    console.log('Filtered headers:', columnsToKeep.map(i => headers[i]));
+    
+    // Debug logging for original data (rows unchanged)
+    console.log('=== Debug: Rows after Revenue Growth ===');
+    for (let i = revenueGrowthRowIndex + 1; i < revenueGrowthRowIndex + 10; i++) {
+      if (i < rows.length) {
+        console.log(`Row ${i}:`, rows[i]);
+        if (rows[i] && rows[i][0]) {
+          console.log(`First column of row ${i}:`, rows[i][0], 'isValidQuarter:', isValidQuarter(rows[i][0]));
+        }
+      }
+    }
+    
     console.log('Found EBITDA row at index:', ebitdaStartIndex);
     console.log('EBITDA row content:', rows[ebitdaStartIndex]);
     console.log('Next 5 rows after EBITDA:');
@@ -470,10 +586,6 @@ const importFromGoogleSheet = async () => {
         console.log(`Row ${i}:`, rows[i]);
       }
     }
-    
-    // Get headers (company names)
-    const headers = rows[0];
-    console.log('Headers:', headers);
     
     const isEmptyRow = (row) => {
       if (!row) return true;
@@ -511,7 +623,9 @@ const importFromGoogleSheet = async () => {
         quarterCount++;
         const quarterStr = `${currentYear}'Q${quarterCount}`;
         quarters.push(quarterStr);
-        revenueGrowthDataRows.push({ row, quarter: quarterStr });
+        // Filter columns in the row data
+        const filteredRow = columnsToKeep.map(colIdx => row[colIdx]);
+        revenueGrowthDataRows.push({ row: filteredRow, quarter: quarterStr });
         console.log(`Generated quarter: ${quarterStr} from year ${yearStr}`);
       }
     }
@@ -519,20 +633,21 @@ const importFromGoogleSheet = async () => {
     console.log('Generated quarters:', quarters);
     console.log(`Extracted ${revenueGrowthDataRows.length} revenue growth data rows`);
 
-    // Prepare data for workbook
-    const processedRows = [headers]; // Start with headers
+    // Prepare data for workbook (using deduplicated columns)
+    const filteredHeaders = columnsToKeep.map(colIdx => headers[colIdx]);
+    const workbookRows = [filteredHeaders]; // Start with filtered headers
 
     // Add revenue growth data
-    processedRows.push(['Rev Growth YoY']);
+    workbookRows.push(['Rev Growth YoY']);
 
     revenueGrowthDataRows.forEach(({ row, quarter }) => {
       const quarterData = [...row];
       quarterData[0] = quarter; // Replace year with quarter string
-      processedRows.push(quarterData);
+      workbookRows.push(quarterData);
     });
 
     // Add EBITDA margin data
-    processedRows.push(['EBITDA Margin % Quarterly']);
+    workbookRows.push(['EBITDA Margin % Quarterly']);
     let currentQuarterIndex = 0;
     const ebitdaDataRows = [];
 
@@ -549,7 +664,9 @@ const importFromGoogleSheet = async () => {
       const firstCell = String(row[0]).trim();
 
       if (isValidQuarter(firstCell) && currentQuarterIndex < quarters.length) {
-        const quarterData = [...row];
+        // Filter columns in the row data
+        const filteredRow = columnsToKeep.map(colIdx => row[colIdx]);
+        const quarterData = [...filteredRow];
         quarterData[0] = quarters[currentQuarterIndex]; // Replace year with quarter string
         ebitdaDataRows.push(quarterData);
         currentQuarterIndex++;
@@ -558,7 +675,7 @@ const importFromGoogleSheet = async () => {
 
     // Add all EBITDA data rows
     ebitdaDataRows.forEach(quarterData => {
-      processedRows.push(quarterData);
+      workbookRows.push(quarterData);
     });
 
     console.log(`Processed ${ebitdaDataRows.length} quarters of EBITDA data`);
@@ -568,7 +685,7 @@ const importFromGoogleSheet = async () => {
       return /^\d{4}'Q[1-4]$/.test(String(value).trim());
     };
 
-    const cleanedRows = processedRows.filter(row => {
+    const cleanedRows = workbookRows.filter(row => {
       if (!Array.isArray(row) || row.length === 0) return false;
 
       if (!isQuarterLabel(row[0])) {
@@ -665,7 +782,49 @@ const handleQuartersLoaded = ({ quarters: loadedQuarters, currentIndex }) => {
   currentQuarterIndex.value = currentIndex;
 };
 
-// Handle slider change
+// Company filter for bubble chart
+const bubbleChartCompanies = ref([]);
+const bubbleCompanyFilter = ref({});
+  
+// Handle companies loaded from AnimatedBubbleChart
+const handleBubbleCompaniesLoaded = (companies) => {
+  console.log('Companies loaded from Bubble Chart:', companies);
+  
+  // Sort companies by display name
+  bubbleChartCompanies.value = companies.sort((a, b) => {
+    const nameA = companyNames[a] || a;
+    const nameB = companyNames[b] || b;
+    return nameA.localeCompare(nameB);
+  });
+  
+  // Initialize all companies as selected (default: all checked)
+  const initialFilter = {};
+  companies.forEach(company => {
+    initialFilter[company] = true;
+  });
+  bubbleCompanyFilter.value = initialFilter;
+  
+  console.log('Bubble chart companies initialized:', bubbleChartCompanies.value);
+  console.log('Initial filter state (all selected):', bubbleCompanyFilter.value);
+};
+
+// Toggle company filter
+const toggleBubbleCompanyFilter = (company) => {
+  const currentValue = bubbleCompanyFilter.value[company];
+  const newValue = !currentValue;
+  
+  console.log(`Toggling ${company} filter from ${currentValue} to ${newValue}`);
+  
+  // Update the filter - watch in AnimatedBubbleChart will auto-refresh
+  bubbleCompanyFilter.value = {
+    ...bubbleCompanyFilter.value,
+    [company]: newValue
+  };
+  
+  console.log('Updated filter state:', bubbleCompanyFilter.value);
+};
+
+// Handle slider change - keep it simple and synchronous
 const handleSliderChange = () => {
   if (bubbleChartRef.value) {
     bubbleChartRef.value.currentYearIndex = currentQuarterIndex.value;
@@ -679,6 +838,21 @@ const saveAnimatedChart = async () => {
     await bubbleChartRef.value.saveChart();
   }
 };
+
+// Watch for view change events (event bus)
+watch(viewChangeEvent, () => {
+  console.log(`View change event received, current view: ${currentView.value}`);
+  
+  if (currentView.value === 'bar-chart') {
+    // Small delay to ensure CSS display property has taken effect
+    setTimeout(() => {
+      if (barChartRef.value?.refresh) {
+        console.log('Triggering bar chart refresh via event');
+        barChartRef.value.refresh();
+      }
+    }, 0); // Minimal delay to let browser apply CSS
+  }
+});
 
 // Add median data calculation
 const medianRevenueGrowth = computed(() => {

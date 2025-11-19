@@ -1,6 +1,14 @@
 <template>
   <div class="chart-container" ref="chartRef">
-    <div id="additional-chart" class="w-full h-full"></div>
+    <div id="additional-chart" class="w-full h-full relative">
+      <!-- Loading indicator - only on chart canvas -->
+      <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-50">
+          <div class="text-center">
+            <div class="text-lg font-semibold text-gray-700">Loading...</div>
+            <div class="text-sm text-gray-600">may take around 2 seconds</div>
+          </div>
+      </div>
+    </div>
 
     <!-- Chart Controls Section -->
     <form class="mt-8">
@@ -146,46 +154,6 @@
               </div>
               <p v-if="yAxisRange.maxError" class="mt-1 text-sm text-red-600">{{ yAxisRange.maxError }}</p>
             </div>
-          </div>
-        </div>
-
-        <!-- Companies Section -->
-        <div class="grid grid-cols-1 gap-x-8 gap-y-10 border-b border-gray-900/10 pb-12 md:grid-cols-3">
-          <div>
-            <h2 class="text-base/7 font-semibold text-gray-900">Companies to Display</h2>
-            <p class="mt-1 text-sm/6 text-gray-600">Select which companies you want to show on the chart.</p>
-          </div>
-
-          <div class="max-w-2xl space-y-10 md:col-span-2">
-            <fieldset>
-              <div class="mt-6 divide-y divide-gray-200 border-b border-t border-gray-200 max-h-60 overflow-y-auto">
-                <div v-for="company in Object.keys(companyNames)" 
-                     :key="company" 
-                     class="relative flex gap-3 py-2 cursor-pointer hover:bg-gray-50"
-                     @click="toggleCompany(company)">
-                  <div class="min-w-0 flex-1 text-sm/6">
-                    <label :for="`company-${company}`" class="select-none font-medium text-gray-900">
-                      {{ companyNames[company] }}
-                    </label>
-                  </div>
-                  <div class="flex h-6 shrink-0 items-center">
-                    <div class="group grid size-4 grid-cols-1">
-                      <input 
-                        :id="`company-${company}`" 
-                        :name="`company-${company}`" 
-                        type="checkbox" 
-                        v-model="selectedCompanies[company]"
-                        class="col-start-1 row-start-1 appearance-none rounded border border-gray-300 bg-white checked:border-wego-green checked:bg-wego-green focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wego-green disabled:border-gray-300 disabled:bg-gray-100 disabled:checked:bg-gray-100 forced-colors:appearance-auto"
-                        @click.stop
-                      />
-                      <svg class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-white group-has-[:disabled]:stroke-gray-950/25" viewBox="0 0 14 14" fill="none">
-                        <path class="opacity-0 group-has-[:checked]:opacity-100" d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </fieldset>
           </div>
         </div>
       </div>
@@ -404,6 +372,7 @@ svg {
 /* Custom slider styling */
 input[type="range"] {
   -webkit-appearance: none;
+  appearance: none;
   width: 100%;
   height: 4px;
   border-radius: 2px;
@@ -484,151 +453,30 @@ input[type="range"]:focus::-moz-range-thumb {
 </style>
 
 <script setup>
-import { onMounted, onUnmounted, ref, computed } from 'vue';
+import { onMounted, onUnmounted, ref, computed, watch, nextTick } from 'vue';
 import { ExclamationCircleIcon } from '@heroicons/vue/16/solid';
 import * as d3 from 'd3';
 import * as XLSX from 'xlsx';
-
-// Import all logos
-import ABNB_LOGO from '/logos/ABNB_logo.png'
-import BKNG_LOGO from '/logos/BKNG_logo.png'
-import EXPE_LOGO from '/logos/EXPE_logo.png'
-import TCOM_LOGO from '/logos/TCOM_logo.png'
-import TRIP_LOGO from '/logos/TRIP_logo.png'
-import TRVG_LOGO from '/logos/TRVG_logo.png'
-import EDR_LOGO from '/logos/EDR_logo.png'
-import DESP_LOGO from '/logos/DESP_logo.png'
-import MMYT_LOGO from '/logos/MMYT_logo.png'
-import IXIGO_LOGO from '/logos/IXIGO_logo.png'
-import LMN_LOGO from '/logos/LMN_logo.png'
-import YTRA_LOGO from '/logos/YTRA_logo.png'
-import OWW_LOGO from '/logos/OWW_logo.png'
-import TRAVELOCITY_LOGO from '/logos/Travelocity_logo.png'
-import EASEMYTRIP_LOGO from '/logos/EASEMYTRIP_logo.png'
-import WEGO_LOGO from '/logos/Wego_logo.png'
-import SKYSCANNER_LOGO from '/logos/Skyscanner_logo.png'
-import ETRAVELI_LOGO from '/logos/Etraveli_logo.png'
-import KIWI_LOGO from '/logos/Kiwi_logo.png'
-import CLEARTRIP_LOGO from '/logos/Cleartrip_logo.png'
-import TRAVELOKA_LOGO from '/logos/Traveloka_logo.png'
-import FLIGHTCENTRE_LOGO from '/logos/FlightCentre_logo.png'
-import SEERA_LOGO from '/logos/SEERA_logo.png'
-import ALMOSAFER_LOGO from '/logos/Almosafer_logo.png'
-import OTA_LOGO from '/logos/OTA_logo.png'
-import KYAK_LOGO from '/logos/KYAK_logo.png'
-import ELONG_LOGO from '/logos/ELONG_logo.png'
-import TONGCHENG_LOGO from '/logos/Tongcheng_logo.png'
-import ESKY_LOGO from '/logos/eSky_logo.png'
+import { companyNames, getCompanyColor, getCompanyLogo } from '../data/companyMeta'
 
 
-// Company colors
-const colorDict = {
-  'ABNB': '#ff5895',
-  'Almosafer': '#bb5387',
-  'BKNG': '#003480',
-  'DESP': '#755bd8',
-  'EXPE': '#fbcc33',
-  'EaseMyTrip': '#00a0e2',
-  'Ixigo': '#e74c3c',
-  'MMYT': '#e74c3c',
-  'TRIP': '#00af87',
-  'TRVG': '#e74c3c',
-  'Wego': '#4e843d',
-  'Yatra': '#e74c3c',
-  'TCOM': '#2577e3',
-  'EDR': '#2577e3',
-  'LMN': '#fc03b1',
-  'Webjet': '#e74c3c',
-  'SEERA': '#750808',
-  'PCLN': '#003480',
-  'Orbitz': '#8edbfa',
-  'Travelocity': '#1d3e5c',
-  'Skyscanner': '#0770e3',
-  'Etraveli': '#b2e9ff',
-  'Kiwi': '#e5fdd4',
-  'Cleartrip': '#e74c3c',
-  'Traveloka': '#38a0e2',
-  'FLT': '#d2b6a8',
-  'Webjet OTA': '#e74c3c',
-  'KYAK': '#ff690f',
-  'eLong': '#2141b2',
-  'Tongcheng Travel': '#5b318f',
-  'eSky': '#002071', 
-};
-
-// Company logos
-const logoDict = {
-  'ABNB': ABNB_LOGO,
-  'BKNG': BKNG_LOGO,
-  'EXPE': EXPE_LOGO,
-  'TCOM': TCOM_LOGO,
-  'TRIP': TRIP_LOGO,
-  'TRVG': TRVG_LOGO,
-  'EDR': EDR_LOGO,
-  'DESP': DESP_LOGO,
-  'MMYT': MMYT_LOGO,
-  'Ixigo': IXIGO_LOGO,
-  'SEERA': SEERA_LOGO,
-  'LMN': LMN_LOGO,
-  'Yatra': YTRA_LOGO,
-  'Orbitz': OWW_LOGO,
-  'Travelocity': TRAVELOCITY_LOGO,
-  'EaseMyTrip': EASEMYTRIP_LOGO,
-  'Wego': WEGO_LOGO,
-  'Skyscanner': SKYSCANNER_LOGO,
-  'Etraveli': ETRAVELI_LOGO,
-  'Kiwi': KIWI_LOGO,
-  'Cleartrip': CLEARTRIP_LOGO,
-  'Traveloka': TRAVELOKA_LOGO,
-  'FLT': FLIGHTCENTRE_LOGO,
-  'Almosafer': ALMOSAFER_LOGO,
-  'Webjet OTA': OTA_LOGO,
-  'KYAK': KYAK_LOGO,
-  'eLong': ELONG_LOGO,
-  'Tongcheng Travel': TONGCHENG_LOGO,
-  'eSky': ESKY_LOGO,
-};
-
-// Add company names mapping
-const companyNames = {
-  'ABNB': 'Airbnb',
-  'BKNG': 'Booking.com',
-  'EXPE': 'Expedia',
-  'TCOM': 'Trip.com',
-  'TRIP': 'TripAdvisor',
-  'TRVG': 'Trivago',
-  'EDR': 'Edreams',
-  'DESP': 'Despegar',
-  'MMYT': 'MakeMyTrip',
-  'Ixigo': 'Ixigo',
-  'SEERA': 'Seera Group',
-  'Webjet': 'Webjet',
-  'LMN': 'Lastminute',
-  'Yatra': 'Yatra.com',
-  'Orbitz': 'Orbitz',
-  'Travelocity': 'Travelocity',
-  'EaseMyTrip': 'EaseMyTrip',
-  'Wego': 'Wego',
-  'Skyscanner': 'Skyscanner',
-  'Etraveli': 'Etraveli',
-  'Kiwi': 'Kiwi',
-  'Cleartrip': 'Cleartrip',
-  'FLT': 'Flight Centre',
-  'Almosafer': 'Almosafer',
-  'Webjet OTA': 'Webjet OTA',
-  'Traveloka': 'Traveloka',
-  'KYAK': 'KYAK',
-  'eLong': 'eLong',
-  'Tongcheng Travel': 'Tongcheng Travel',
-  'eSky': 'eSky', 
-};
+// companyNames, colors, and logos are centralized in src/data/companyMeta.js
 
 const currentYearIndex = ref(0);
 const years = ref([]);
 const mergedData = ref([]);
+const isLoading = ref(true);
+
+// Define props - receive company filter from parent
+const props = defineProps({
+  companyFilter: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
 // Add emit definition
-const emit = defineEmits(['data-update', 'company-select', 'quarters-loaded']);
+const emit = defineEmits(['data-update', 'company-select', 'quarters-loaded', 'companies-loaded']);
 
 // Add these as component-level variables to maintain consistent scales
 let xScale, yScale;
@@ -637,9 +485,6 @@ let xScale, yScale;
 const margin = { top: 50, right: 100, bottom: 50, left: 60 };
 const chartRef = ref(null);
 let update; // Declare update function reference
-
-// Add selected companies state
-const selectedCompanies = ref({});
 
 // Create a map to store custom ranges for each quarter
 const quarterRanges = ref({});
@@ -785,14 +630,33 @@ const validateAndUpdateRange = (axis, bound) => {
   }
 };
 
-// Function to initialize selected companies
-const initializeSelectedCompanies = () => {
-  const companies = Object.keys(companyNames);
-  companies.forEach(company => {
-    selectedCompanies.value[company] = true;
-  });
-  console.log('Initialized selected companies:', selectedCompanies.value);
+// Note: Company filter is managed by parent (App.vue) and passed as prop
+
+// Helper function to check if component is visible (v-show)
+const isComponentVisible = () => {
+  if (!chartRef.value) return false;
+  // Check if element is visible (v-show sets display:none when hidden)
+  return chartRef.value.offsetParent !== null;
 };
+
+// Helper function to stop all D3 transitions
+const stopAllTransitions = () => {
+  if (!chartRef.value) return;
+  d3.select(chartRef.value).selectAll('*').interrupt();
+  console.log('Stopped all D3 transitions in AnimatedBubbleChart');
+};
+
+// Watch for company filter changes and refresh chart immediately
+watch(() => props.companyFilter, (newFilter) => {
+  console.log('Company filter changed:', newFilter);
+  // Only update if component is visible
+  if (update && years.value.length > 0 && isComponentVisible()) {
+    console.log('Auto-refreshing chart due to filter change');
+    update(currentYearIndex.value);
+  } else if (!isComponentVisible()) {
+    console.log('Component not visible, skipping update');
+  }
+}, { deep: true });
 
 // Function to get chart dimensions
 const getChartDimensions = () => {
@@ -831,8 +695,13 @@ const processExcelData = (file) => {
       const headers = rawHeaderRow.slice(1).map(h => (h && String(h).trim()) || null);
       console.log('Processed headers (length, including nulls):', headers.length, headers);
       
-      // Initialize selected companies
-      initializeSelectedCompanies();
+      // Extract company names (filter out null/empty headers)
+      const companiesFromBubbleData = headers.filter(h => h !== null && h !== '');
+      console.log('Companies from bubble data:', companiesFromBubbleData);
+      
+      // Emit companies to parent for filter management
+      emit('companies-loaded', companiesFromBubbleData);
+      console.log('Emitted companies-loaded event with', companiesFromBubbleData.length, 'companies');
       
       // Find Revenue Growth row
       const revenueGrowthRowIndex = jsonData.findIndex(row => 
@@ -1062,10 +931,14 @@ const processExcelData = (file) => {
       initChart();
       update(currentYearIndex.value);  // Initial update
       
+      // Hide loading indicator after chart is rendered
+      isLoading.value = false;
+      
     } catch (error) {
       console.error('Error processing Excel file:', error);
       console.error('Error stack:', error.stack);
       alert('处理数据时出错：' + error.message);
+      isLoading.value = false;
     }
   };
   
@@ -1093,7 +966,12 @@ const handleSliderChange = (event) => {
   currentQuarterHasCustomRange.value = false;
   currentYearIndex.value = newIndex;
   
-  if (update) update(currentYearIndex.value);
+  // Only update if component is visible
+  if (update && isComponentVisible()) {
+    update(currentYearIndex.value);
+  } else if (!isComponentVisible()) {
+    console.log('Component not visible, skipping slider update');
+  }
 };
 
 // Add save chart function
@@ -1256,23 +1134,39 @@ const initChart = () => {
 
     // Define update function
     update = (quarterIndex) => {
+      // Check if component is visible before any D3 operations
+      if (!isComponentVisible()) {
+        console.log('AnimatedBubbleChart not visible, skipping update');
+        return;
+      }
+      
       console.log('=== Update Function Start ===');
       console.log('Updating chart for quarter:', years.value[quarterIndex]);
-      console.log('Selected companies state:', selectedCompanies.value);
-      console.log('Current mergedData:', mergedData.value);
+      console.log('Company filter state:', props.companyFilter);
       
-      // Filter data for current quarter and selected companies
+      // Filter data for current quarter and company filter
       const currentData = mergedData.value.filter(d => {
         const isSelectedQuarter = d.quarter === years.value[quarterIndex];
-        const isSelectedCompany = selectedCompanies.value[d.company] === true;
-        return isSelectedQuarter && isSelectedCompany;
+        // Apply company filter - if filter is empty or not set, show all; otherwise check filter
+        const isCompanyFiltered = Object.keys(props.companyFilter).length === 0 || 
+                                   props.companyFilter[d.company] === true;
+        
+        // Debug log for each company
+        if (isSelectedQuarter) {
+          console.log(`Company ${d.company}: filtered=${isCompanyFiltered}, will show=${isSelectedQuarter && isCompanyFiltered}`);
+        }
+        
+        return isSelectedQuarter && isCompanyFiltered;
       });
       
-      console.log('Filtered data for rendering:', currentData);
+      console.log(`Filtered data for rendering: ${currentData.length} companies out of ${mergedData.value.filter(d => d.quarter === years.value[quarterIndex]).length} total in this quarter`);
       
       // Calculate current quarter data range
       const currentQuarter = years.value[quarterIndex];
       console.log(`Updating chart for quarter: ${currentQuarter}`);
+      
+      // Always update axes, even when no data (to reset to proper ranges)
+      let shouldUpdateAxes = true;
       
       if (currentData.length > 0) {
         // Check if user has manually set ranges for this quarter
@@ -1296,20 +1190,116 @@ const initChart = () => {
         // Check if we already calculated optimal range for this quarter
         else if (quarterRanges.value[currentQuarter]) {
           const savedRange = quarterRanges.value[currentQuarter];
-          console.log(`Using saved optimal ranges for ${currentQuarter}:`, {
-            xDomain: savedRange.xDomain.map(v => (v*100).toFixed(1) + '%'),
-            yDomain: savedRange.yDomain.map(v => (v*100).toFixed(1) + '%')
-          });
           
-          // Use the saved ranges
-          xScale.domain(savedRange.xDomain);
-          yScale.domain(savedRange.yDomain);
+          // 验证保存的范围是否能容纳所有当前数据点
+          const ebitdaValues = currentData
+            .map(d => d.ebitdaMargin)
+            .filter(v => Number.isFinite(v));
+          const revenueValues = currentData
+            .map(d => d.revenueGrowth)
+            .filter(v => Number.isFinite(v));
           
-          // Update UI input values to match
-          xAxisRange.value.min = (savedRange.xDomain[0] * 100).toFixed(0);
-          xAxisRange.value.max = (savedRange.xDomain[1] * 100).toFixed(0);
-          yAxisRange.value.min = (savedRange.yDomain[0] * 100).toFixed(0);
-          yAxisRange.value.max = (savedRange.yDomain[1] * 100).toFixed(0);
+          const minEbitda = Math.min(...ebitdaValues);
+          const maxEbitda = Math.max(...ebitdaValues);
+          const minRevenue = Math.min(...revenueValues);
+          const maxRevenue = Math.max(...revenueValues);
+          
+          const rangeNeedsUpdate = 
+            minEbitda < savedRange.xDomain[0] || 
+            maxEbitda > savedRange.xDomain[1] ||
+            minRevenue < savedRange.yDomain[0] ||
+            maxRevenue > savedRange.yDomain[1];
+          
+          if (rangeNeedsUpdate) {
+            console.log(`Saved range for ${currentQuarter} cannot contain all data points, recalculating...`);
+            console.log('Current data range:', {
+              ebitda: `${(minEbitda * 100).toFixed(1)}% to ${(maxEbitda * 100).toFixed(1)}%`,
+              revenue: `${(minRevenue * 100).toFixed(1)}% to ${(maxRevenue * 100).toFixed(1)}%`
+            });
+            console.log('Saved range:', {
+              ebitda: `${(savedRange.xDomain[0] * 100).toFixed(1)}% to ${(savedRange.xDomain[1] * 100).toFixed(1)}%`,
+              revenue: `${(savedRange.yDomain[0] * 100).toFixed(1)}% to ${(savedRange.yDomain[1] * 100).toFixed(1)}%`
+            });
+            
+            // 重新计算范围（使用新的 outlier 检测逻辑）
+            const computeTrimmedDomain = (values, defaultDomain, label, dataPoints) => {
+              if (!values.length) {
+                return defaultDomain;
+              }
+              const sorted = [...values].sort((a, b) => a - b);
+              const wegoDataPoint = dataPoints.find(d => d.company === 'Wego');
+              const wegoValue = label === 'EBITDA' ? wegoDataPoint?.ebitdaMargin : wegoDataPoint?.revenueGrowth;
+              const outliers = new Set();
+              
+              for (let i = 0; i < Math.min(3, sorted.length - 1); i++) {
+                const current = sorted[i];
+                const next = sorted[i + 1];
+                const max = sorted[sorted.length - 1];
+                const gap = next - current;
+                const rangeToMax = max - next;
+                if (gap > rangeToMax / 2 && current !== wegoValue) {
+                  outliers.add(current);
+                } else {
+                  break;
+                }
+              }
+              
+              for (let i = sorted.length - 1; i > Math.max(sorted.length - 4, 0); i--) {
+                const current = sorted[i];
+                const prev = sorted[i - 1];
+                const min = sorted[0];
+                const gap = current - prev;
+                const rangeFromMin = prev - min;
+                if (gap > rangeFromMin / 2 && current !== wegoValue) {
+                  outliers.add(current);
+                } else {
+                  break;
+                }
+              }
+              
+              const filtered = sorted.filter(v => !outliers.has(v));
+              if (filtered.length === 0) return defaultDomain;
+              
+              const trimmedMin = filtered[0];
+              const trimmedMax = filtered[filtered.length - 1];
+              const range = trimmedMax - trimmedMin;
+              const margin = Math.max(0.05, range * 0.1);
+              
+              return [trimmedMin - margin, trimmedMax + margin];
+            };
+            
+            const currentXDomain = computeTrimmedDomain(ebitdaValues, DEFAULT_X_DOMAIN, 'EBITDA', currentData);
+            const currentYDomain = computeTrimmedDomain(revenueValues, DEFAULT_Y_DOMAIN, 'Revenue Growth', currentData);
+            
+            // 更新保存的范围
+            quarterRanges.value[currentQuarter] = {
+              xDomain: currentXDomain,
+              yDomain: currentYDomain
+            };
+            
+            xScale.domain(currentXDomain);
+            yScale.domain(currentYDomain);
+            
+            xAxisRange.value.min = (currentXDomain[0] * 100).toFixed(0);
+            xAxisRange.value.max = (currentXDomain[1] * 100).toFixed(0);
+            yAxisRange.value.min = (currentYDomain[0] * 100).toFixed(0);
+            yAxisRange.value.max = (currentYDomain[1] * 100).toFixed(0);
+          } else {
+            console.log(`Using saved optimal ranges for ${currentQuarter}:`, {
+              xDomain: savedRange.xDomain.map(v => (v*100).toFixed(1) + '%'),
+              yDomain: savedRange.yDomain.map(v => (v*100).toFixed(1) + '%')
+            });
+            
+            // Use the saved ranges
+            xScale.domain(savedRange.xDomain);
+            yScale.domain(savedRange.yDomain);
+            
+            // Update UI input values to match
+            xAxisRange.value.min = (savedRange.xDomain[0] * 100).toFixed(0);
+            xAxisRange.value.max = (savedRange.xDomain[1] * 100).toFixed(0);
+            yAxisRange.value.min = (savedRange.yDomain[0] * 100).toFixed(0);
+            yAxisRange.value.max = (savedRange.yDomain[1] * 100).toFixed(0);
+          }
         }
         // Otherwise calculate optimal range for this quarter
         else {
@@ -1321,43 +1311,105 @@ const initChart = () => {
             .map(d => d.revenueGrowth)
             .filter(v => Number.isFinite(v));
 
-          const computeTrimmedDomain = (values, defaultDomain, label) => {
+          const computeTrimmedDomain = (values, defaultDomain, label, dataPoints) => {
             if (!values.length) {
               console.warn(`No ${label} values found for domain calculation, using default range`);
               return defaultDomain;
             }
 
             const sorted = [...values].sort((a, b) => a - b);
-            const lowerIndex = Math.floor(sorted.length * 0.05);
-            const upperIndex = Math.max(lowerIndex, Math.ceil(sorted.length * 0.95) - 1);
+            
+            // 获取 Wego 的数据值（必须始终显示）
+            const wegoDataPoint = dataPoints.find(d => d.company === 'Wego');
+            const wegoValue = label === 'EBITDA' ? wegoDataPoint?.ebitdaMargin : wegoDataPoint?.revenueGrowth;
+            
+            // 识别 outliers：检查每个极端点是否离其相邻点很远
+            const outliers = new Set();
+            
+            // 检查下端（最小值方向），最多检查 3 个
+            for (let i = 0; i < Math.min(3, sorted.length - 1); i++) {
+              const current = sorted[i];
+              const next = sorted[i + 1];
+              const max = sorted[sorted.length - 1];
+              
+              const gap = next - current;
+              const rangeToMax = max - next;
+              
+              // 如果当前点与下一个点的距离 > (最大值 - 下一个点) / 2，则是 outlier
+              if (gap > rangeToMax / 2) {
+                // Wego 数据点必须始终显示，不能标记为 outlier
+                if (current !== wegoValue) {
+                  outliers.add(current);
+                  console.log(`${label} outlier detected (lower): ${(current * 100).toFixed(1)}% (gap: ${(gap * 100).toFixed(1)}%, threshold: ${(rangeToMax / 2 * 100).toFixed(1)}%)`);
+                } else {
+                  console.log(`${label} ${(current * 100).toFixed(1)}% is Wego, must be included even though it appears to be an outlier`);
+                }
+              } else {
+                break; // 如果不是 outlier，停止检查
+              }
+            }
+            
+            // 检查上端（最大值方向），最多检查 3 个
+            for (let i = sorted.length - 1; i > Math.max(sorted.length - 4, 0); i--) {
+              const current = sorted[i];
+              const prev = sorted[i - 1];
+              const min = sorted[0];
+              
+              const gap = current - prev;
+              const rangeFromMin = prev - min;
+              
+              if (gap > rangeFromMin / 2) {
+                if (current !== wegoValue) {
+                  outliers.add(current);
+                  console.log(`${label} outlier detected (upper): ${(current * 100).toFixed(1)}% (gap: ${(gap * 100).toFixed(1)}%, threshold: ${(rangeFromMin / 2 * 100).toFixed(1)}%)`);
+                } else {
+                  console.log(`${label} ${(current * 100).toFixed(1)}% is Wego, must be included even though it appears to be an outlier`);
+                }
+              } else {
+                break;
+              }
+            }
 
-            const trimmedMin = sorted[lowerIndex];
-            const trimmedMax = sorted[upperIndex];
+            // 过滤掉 outliers
+            const filtered = sorted.filter(v => !outliers.has(v));
+            
+            if (filtered.length === 0) {
+              console.warn(`All ${label} values were outliers, using full range`);
+              return defaultDomain;
+            }
+            
+            const trimmedMin = filtered[0];
+            const trimmedMax = filtered[filtered.length - 1];
 
-            if (trimmedMin !== sorted[0] || trimmedMax !== sorted[sorted.length - 1]) {
-              console.log(`Trimmed ${label} domain to mitigate outliers`, {
-                originalMin: (sorted[0] * 100).toFixed(1) + '%',
-                originalMax: (sorted[sorted.length - 1] * 100).toFixed(1) + '%',
-                trimmedMin: (trimmedMin * 100).toFixed(1) + '%',
-                trimmedMax: (trimmedMax * 100).toFixed(1) + '%'
+            if (outliers.size > 0) {
+              console.log(`${label} excluded ${outliers.size} outlier(s):`, {
+                outliers: Array.from(outliers).map(v => (v * 100).toFixed(1) + '%'),
+                includedRange: `${(trimmedMin * 100).toFixed(1)}% to ${(trimmedMax * 100).toFixed(1)}%`,
+                totalDataPoints: sorted.length,
+                includedDataPoints: filtered.length
               });
             }
 
             const range = trimmedMax - trimmedMin;
             const margin = Math.max(0.05, range * 0.1);
 
-            return [
-              Math.max(defaultDomain[0], trimmedMin - margin),
-              Math.min(defaultDomain[1], trimmedMax + margin)
-            ];
+            const calculatedDomain = [trimmedMin - margin, trimmedMax + margin];
+            
+            console.log(`Calculated ${label} domain:`, {
+              domainMin: (calculatedDomain[0] * 100).toFixed(1) + '%',
+              domainMax: (calculatedDomain[1] * 100).toFixed(1) + '%',
+              dataPoints: filtered.length
+            });
+
+            return calculatedDomain;
           };
  
           // Check if current quarter data exceeds default range
           const defaultXDomain = DEFAULT_X_DOMAIN;
           const defaultYDomain = DEFAULT_Y_DOMAIN;
           
-          const currentXDomain = computeTrimmedDomain(ebitdaValues, defaultXDomain, 'EBITDA');
-          const currentYDomain = computeTrimmedDomain(revenueValues, defaultYDomain, 'Revenue Growth');
+          const currentXDomain = computeTrimmedDomain(ebitdaValues, defaultXDomain, 'EBITDA', currentData);
+          const currentYDomain = computeTrimmedDomain(revenueValues, defaultYDomain, 'Revenue Growth', currentData);
 
           // Save this calculated range for future reference
           quarterRanges.value[currentQuarter] = {
@@ -1380,8 +1432,38 @@ const initChart = () => {
             yDomain: currentYDomain.map(v => (v*100).toFixed(1) + '%')
           });
         }
+      } else {
+        // No data for current quarter - use saved range or default range
+        console.log(`No data available for ${currentQuarter}`);
         
-        // Update axes
+        if (quarterRanges.value[currentQuarter]) {
+          // Use saved range if available
+          const savedRange = quarterRanges.value[currentQuarter];
+          xScale.domain(savedRange.xDomain);
+          yScale.domain(savedRange.yDomain);
+          
+          xAxisRange.value.min = (savedRange.xDomain[0] * 100).toFixed(0);
+          xAxisRange.value.max = (savedRange.xDomain[1] * 100).toFixed(0);
+          yAxisRange.value.min = (savedRange.yDomain[0] * 100).toFixed(0);
+          yAxisRange.value.max = (savedRange.yDomain[1] * 100).toFixed(0);
+          
+          console.log(`Using saved range for empty quarter ${currentQuarter}`);
+        } else {
+          // Use default range
+          xScale.domain(DEFAULT_X_DOMAIN);
+          yScale.domain(DEFAULT_Y_DOMAIN);
+          
+          xAxisRange.value.min = (DEFAULT_X_DOMAIN[0] * 100).toFixed(0);
+          xAxisRange.value.max = (DEFAULT_X_DOMAIN[1] * 100).toFixed(0);
+          yAxisRange.value.min = (DEFAULT_Y_DOMAIN[0] * 100).toFixed(0);
+          yAxisRange.value.max = (DEFAULT_Y_DOMAIN[1] * 100).toFixed(0);
+          
+          console.log(`Using default range for empty quarter ${currentQuarter}`);
+        }
+      }
+      
+      // Always update axes (moved outside the data check)
+      if (shouldUpdateAxes) {
         svg.select(".x-axis").transition().duration(750).call(
           d3.axisBottom(xScale).ticks(8).tickFormat(d => (d * 100).toFixed(0) + "%")
         );
@@ -1393,7 +1475,28 @@ const initChart = () => {
       // Emit the current data
       emit('data-update', currentData);
     
-    // Update bubbles
+    // Log data points that fall outside the axis range (but will still be rendered)
+    const currentXDomain = xScale.domain();
+    const currentYDomain = yScale.domain();
+    const outOfRangePoints = currentData.filter(d => 
+      d.ebitdaMargin < currentXDomain[0] || 
+      d.ebitdaMargin > currentXDomain[1] ||
+      d.revenueGrowth < currentYDomain[0] || 
+      d.revenueGrowth > currentYDomain[1]
+    );
+    
+    if (outOfRangePoints.length > 0) {
+      console.log(`${outOfRangePoints.length} data point(s) outside axis range (will be clipped):`, 
+        outOfRangePoints.map(d => ({
+          company: d.company,
+          ebitda: (d.ebitdaMargin * 100).toFixed(1) + '%',
+          revenue: (d.revenueGrowth * 100).toFixed(1) + '%'
+        }))
+      );
+    }
+    
+    // Update bubbles - render ALL data points (outliers will naturally fall outside the visible canvas)
+    // When users manually adjust axis ranges, outliers can become visible
     const bubbles = svg.selectAll(".bubble")
       .data(currentData, d => d.company);
         
@@ -1418,7 +1521,7 @@ const initChart = () => {
       // Update bubble and logo sizes
     bubblesEnter.append("circle")
         .attr("r", 6)
-        .attr("fill", d => colorDict[d.company] || "#64748b")
+        .attr("fill", d => getCompanyColor(d.company))
         .attr("stroke", "white")
         .attr("stroke-width", "2px")
         .attr("opacity", 0.8);
@@ -1432,7 +1535,7 @@ const initChart = () => {
       const logoSize = 96;
       logoGroups.append("image")
         .attr("class", "logo")
-        .attr("xlink:href", d => logoDict[d.company] || "")
+        .attr("xlink:href", d => getCompanyLogo(d.company) || "")
         .attr("x", -logoSize/2)
         .attr("y", -logoSize/2 - 25)
         .attr("width", logoSize)
@@ -1475,12 +1578,39 @@ const initChart = () => {
       .duration(1000)
       .attr("transform", d => `translate(${xScale(d.ebitdaMargin)},${yScale(d.revenueGrowth)})`);
       
-    // Add zero lines
-    const zeroLines = svg.selectAll(".zero-line").data([
-      { x1: xScale(0), y1: 0, x2: xScale(0), y2: height - margin.bottom },
-      { x1: margin.left, y1: yScale(0), x2: width - margin.right, y2: yScale(0) }
-    ]);
+    // Add zero lines (only if 0 is within the axis range)
+    const xDomain = xScale.domain();
+    const yDomain = yScale.domain();
+    const zeroLinesData = [];
     
+    // Add vertical zero line if 0 is within X axis range
+    if (xDomain[0] <= 0 && xDomain[1] >= 0) {
+      zeroLinesData.push({ 
+        x1: xScale(0), 
+        y1: margin.top, 
+        x2: xScale(0), 
+        y2: height - margin.bottom,
+        axis: 'x'
+      });
+    }
+    
+    // Add horizontal zero line if 0 is within Y axis range
+    if (yDomain[0] <= 0 && yDomain[1] >= 0) {
+      zeroLinesData.push({ 
+        x1: margin.left, 
+        y1: yScale(0), 
+        x2: width - margin.right, 
+        y2: yScale(0),
+        axis: 'y'
+      });
+    }
+    
+    const zeroLines = svg.selectAll(".zero-line").data(zeroLinesData, d => d.axis);
+    
+    // Remove zero lines that are no longer needed
+    zeroLines.exit().remove();
+    
+    // Add or update zero lines
     zeroLines.enter()
       .append("line")
       .attr("class", "zero-line")
@@ -1505,24 +1635,19 @@ const initChart = () => {
     }
 };
 
-// Add company selection handler
-const handleCompanySelection = () => {
-  if (update) update(currentYearIndex.value);
-};
-
-// Add this after the existing script setup imports
-const toggleCompany = (company) => {
-  selectedCompanies.value[company] = !selectedCompanies.value[company];
-  handleCompanySelection();
-};
+// Note: Company selection UI and logic moved to App.vue as global component
 
 // Expose methods
 defineExpose({
   processExcelData,
   saveChart,
   currentYearIndex,
+  stopAllTransitions,
   handleSliderChange: () => {
-    if (update) update(currentYearIndex.value);
+    // Simple synchronous call - visibility check inside update()
+    if (update && isComponentVisible()) {
+      update(currentYearIndex.value);
+    }
   }
 });
 </script> 
