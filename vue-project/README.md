@@ -14,6 +14,8 @@ This template helps you get started with Vue 3 and Vite for interactive travel m
 **Editor's note (Nov 2025):**  
 I personally recommend using [Cursor](https://cursor.com/) instead, which offers AI-powered coding assistance, especially powerful if you don't really understand Vue. NUS students can apply for the [Student Pack](https://cursor.com/students) to get Cursor Pro for free.
 
+In the latest version, I encountered a severe bug in displaying the web page when switching from bubble chart to bar chart (or switching back), so I just recommend you not to pay attention to bar chart any more unless required. Help Ned optimize the layout of bubble chart.
+
 ### Customize Configuration
 
 See [Vite Configuration Reference](https://vite.dev/config/).

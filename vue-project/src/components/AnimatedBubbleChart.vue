@@ -1512,13 +1512,9 @@ const initChart = () => {
       .append("g")
       .attr("class", "bubble")
       .attr("transform", d => `translate(${xScale(d.ebitdaMargin)},${yScale(d.revenueGrowth)})`)
-      .style("cursor", "pointer")
-      .on("click", (event, d) => {
-          // Emit company selection event
-          emit('company-select', d);
-        });
+      .style("cursor", "pointer");
 
-      // Update bubble and logo sizes
+    // Update bubble and logo sizes
     bubblesEnter.append("circle")
         .attr("r", 6)
         .attr("fill", d => getCompanyColor(d.company))
@@ -1573,8 +1569,17 @@ const initChart = () => {
             .attr('y', currentY + dy);
         }));
       
-    // Update existing bubbles with transition
-    bubbles.transition()
+    // Merge enter and update selections
+    const allBubbles = bubblesEnter.merge(bubbles);
+    
+    // Bind click event to all bubbles (new and existing)
+    allBubbles.on("click", (event, d) => {
+      console.log('Bubble clicked:', d);
+      emit('company-select', d);
+    });
+    
+    // Update all bubbles position with transition
+    allBubbles.transition()
       .duration(1000)
       .attr("transform", d => `translate(${xScale(d.ebitdaMargin)},${yScale(d.revenueGrowth)})`);
       

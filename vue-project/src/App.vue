@@ -303,29 +303,42 @@ import { companyNames } from './data/companyMeta'
 
 const currentView = ref('bubble-chart')
 const viewChangeEvent = ref(0) // Event bus using ref counter
+const isTransitioning = ref(false) // Flag to prevent operations during transition
 
 // Handle navigation click - simple view switch
 const handleNavigationClick = (newView) => {
-  if (currentView.value === newView) return;
+  if (currentView.value === newView || isTransitioning.value) {
+    console.log('Already transitioning or same view, ignoring');
+    return;
+  }
+  
   console.log(`Switching view to: ${newView}`);
+  isTransitioning.value = true;
   
   // Stop all D3 transitions in AnimatedBubbleChart before switching
   if (bubbleChartRef.value?.stopAllTransitions) {
     bubbleChartRef.value.stopAllTransitions();
   }
   
-  // Use setTimeout to break out of current execution context
-  // This ensures all pending D3 operations are completely finished
-  setTimeout(() => {
-    console.log(`Executing view change to: ${newView}`);
-    currentView.value = newView;
-    
-    // After Vue updates DOM, trigger event for charts to render
-    nextTick(() => {
-      viewChangeEvent.value++; // Increment to trigger watchers
-      console.log(`View switch complete, event triggered: ${viewChangeEvent.value}`);
+  // Use requestAnimationFrame to ensure browser has finished current frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      console.log(`Executing view change to: ${newView}`);
+      currentView.value = newView;
+      
+      // After Vue updates DOM, trigger event for charts to render
+      nextTick(() => {
+        viewChangeEvent.value++; // Increment to trigger watchers
+        console.log(`View switch complete, event triggered: ${viewChangeEvent.value}`);
+        
+        // Clear transitioning flag after a short delay
+        setTimeout(() => {
+          isTransitioning.value = false;
+          console.log('Transition complete');
+        }, 100);
+      });
     });
-  }, 0);
+  });
 }
 
 const bubbleChartRef = ref(null)
