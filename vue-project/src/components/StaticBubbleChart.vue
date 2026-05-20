@@ -68,6 +68,7 @@ import { onMounted, ref } from 'vue';
 import * as d3 from 'd3';
 import * as XLSX from 'xlsx';
 import { getCompanyColor, getCompanyLogo } from '../data/companyMeta';
+import Papa from 'papaparse';
 
 let chartData = ref([]);
 
@@ -234,11 +235,12 @@ const fetchDataFromUrl = async () => {
     // row N+1: "12m trailing"
     // We find the first of the pair and use the data rows that follow.
     const revGrowthRowIndex = rows.findIndex(row =>
-      row[0] && String(row[0]).trim().startsWith('Revenue growth TTM')
+      row[0] && String(row[0]).trim() === 'Revenue growth TTM'
     );
     const ebitdaRowIndex = rows.findIndex(row =>
-      row[0] && String(row[0]).trim().startsWith('EBITDA Margin TTM')
+      row[0] && String(row[0]).trim() === 'EBITDA Margin TTM'
     );
+
     if (revGrowthRowIndex === -1) throw new Error('Revenue growth TTM row not found');
     if (ebitdaRowIndex === -1) throw new Error('EBITDA Margin TTM row not found');
 
