@@ -208,75 +208,92 @@ const processExcelData = (file) => {
 
 // Update fetchDataFromUrl function
 const fetchDataFromUrl = async () => {
-  console.log('Using static data...');
+  const sheetId = '2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9';
+  const gid = '1144102204';
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/e/${sheetId}/pub?gid=${gid}&output=csv`;
+
   try {
-    // Static data - removed SEERA and fixed company names
-    const companies = ['ABNB', 'BKNG', 'EXPE', 'TCOM', 'TRIP', 'TRVG', 'EDR', 'DESP', 'MMYT', 'Ixigo', 'Almosafer', 'Wego', 'Webjet', 'Webjet OTA', 'Cleartrip Arabia', 'LMN', 'EaseMyTrip', 'Yatra'];
-    const revenueGrowth = [0.13, 0.12, 0.07, 0.29, 0.04, -0.08, 0.06, 0.17, 0.29, 0.26, 0.47, 0.59, null, 0.10, null, -0.07, 0.02, 0.33];
-    const ebitdaMargin = [0.21, 0.27, 0.10, 0.31, 0.07, -0.07, 0.13, 0.07, 0.14, 0.09, 0.06, 0.14, null, 0.50, null, 0.12, 0.43, 0.00];
-    
-    const processedData = [];
-    
-    companies.forEach((company, index) => {
-      const growth = revenueGrowth[index];
-      const margin = ebitdaMargin[index];
-      
-      // Skip if either value is null or undefined
-      if (growth === null || margin === null || growth === undefined || margin === undefined) {
-        console.log(`Skipping ${company} due to missing data`);
-        return;
+    const response = await fetch(sheetUrl);
+    if (!response.ok) throw new Error('Failed to fetch Google Sheet');
+    const csvText = await response.text();
+
+    // Parse CSV rows
+    const rows = csvText.split('\n').map(row =>
+      row.split(',').map(cell => {
+        const cleaned = cell.trim().replace(/^["']|["']$/g, '');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? cleaned : num;
+      })
+    );
+
+    const headers = rows[0];
+
+    // Find the two section header rows
+    // The label spans two CSV rows due to the line break in the cell:
+    // row N:   "Revenue growth TTM"
+    // row N+1: "12m trailing"
+    // We find the first of the pair and use the data rows that follow.
+    const revGrowthRowIndex = rows.findIndex(row =>
+      row[0] && String(row[0]).trim().startsWith('Revenue growth TTM')
+    );
+    const ebitdaRowIndex = rows.findIndex(row =>
+      row[0] && String(row[0]).trim().startsWith('EBITDA Margin TTM')
+    );
+    if (revGrowthRowIndex === -1) throw new Error('Revenue growth TTM row not found');
+    if (ebitdaRowIndex === -1) throw new Error('EBITDA Margin TTM row not found');
+
+    // Data starts 2 rows after the label (skip the "12m trailing" sub-row)
+    // Find the most recent quarter row in the revenue growth section
+    // by scanning forward until we hit the EBITDA section or an empty row
+    let latestRevRow = null;
+    for (let i = revGrowthRowIndex + 2; i < ebitdaRowIndex; i++) {
+      const row = rows[i];
+      if (!row || !row[0]) continue;
+      const cell = String(row[0]).trim();
+      if (/^\d{4}'Q[1-4]$/.test(cell)) latestRevRow = row;
+    }
+
+    // Find the matching row in the EBITDA section with the same quarter label
+    const targetQuarter = latestRevRow ? String(latestRevRow[0]).trim() : null;
+    let latestEbitdaRow = null;
+    for (let i = ebitdaRowIndex + 2; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || !row[0]) continue;
+      if (String(row[0]).trim() === targetQuarter) {
+        latestEbitdaRow = row;
+        break;
       }
-      
-      console.log(`Processing ${company}:`, {
-        revenueGrowth: growth,
-        ebitdaMargin: margin,
-        isValid: !isNaN(growth) && !isNaN(margin)
-      });
-      
-      if (!isNaN(growth) && !isNaN(margin) &&
-          growth >= globalYDomain[0] && growth <= globalYDomain[1] &&
-          margin >= globalXDomain[0] && margin <= globalXDomain[1]) {
+    }
+
+    if (!latestRevRow || !latestEbitdaRow) throw new Error('Could not find latest quarter data rows');
+
+    console.log('Static chart using quarter:', targetQuarter);
+
+    const processedData = [];
+    headers.forEach((company, index) => {
+      if (!company || index === 0) return;
+      const revenueGrowth = parseFloat(latestRevRow[index]);
+      const ebitdaMargin = parseFloat(latestEbitdaRow[index]);
+      if (isNaN(revenueGrowth) || isNaN(ebitdaMargin)) return;
+      if (
+        revenueGrowth >= globalYDomain[0] && revenueGrowth <= globalYDomain[1] &&
+        ebitdaMargin >= globalXDomain[0] && ebitdaMargin <= globalXDomain[1]
+      ) {
         processedData.push({
-          company: company,
-          ebitdaMargin: margin,
-          revenueGrowth: growth
+          company: String(company).trim(),
+          ebitdaMargin,
+          revenueGrowth
         });
       }
     });
-    
-    console.log('Processed data:', processedData);
-    
-    if (processedData.length === 0) {
-      throw new Error('No valid data points found');
-    }
-    
-    // Update chart data
+
+    if (processedData.length === 0) throw new Error('No valid data points found');
+
     chartData.value = processedData;
-    console.log('Chart data updated:', chartData.value);
-    
-    // Initialize chart
     initChart();
-    
+
   } catch (error) {
-    console.error('Error processing static data:', error);
-    console.error('Error stack:', error.stack);
-    
-    // Show error message in chart area
-    const container = d3.select('#static-chart')
-      .append('div')
-      .style('text-align', 'center')
-      .style('padding-top', '40px')
-      .style('color', '#e74c3c');
-
-    container.append('div')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .style('margin-bottom', '12px')
-      .text('Error loading data');
-
-    container.append('div')
-      .style('font-size', '14px')
-      .text('Please try refreshing the page or contact support if the issue persists.');
+    console.error('Error loading static chart data:', error);
   }
 };
 
