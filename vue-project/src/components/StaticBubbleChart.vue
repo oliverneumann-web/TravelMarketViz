@@ -208,75 +208,78 @@ const processExcelData = (file) => {
 
 // Update fetchDataFromUrl function
 const fetchDataFromUrl = async () => {
-  const sheetId = '2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9';
-  const gid = '1144102204';
-  const sheetUrl = `https://docs.google.com/spreadsheets/d/e/${sheetId}/pub?gid=${gid}&output=csv`;
-
+  console.log('Using static data...');
   try {
-    const response = await fetch(sheetUrl);
-    if (!response.ok) throw new Error('Failed to fetch Google Sheet');
-    const csvText = await response.text();
-
-    const rows = csvText.split('\n').map(row =>
-      row.split(',').map(cell => {
-        const cleaned = cell.trim().replace(/^["']|["']$/g, '');
-        const num = parseFloat(cleaned);
-        return isNaN(num) ? cleaned : num;
-      })
-    );
-
-    const headers = rows[0];
-
-    const revGrowthRowIndex = rows.findIndex(row =>
-      row[0] && String(row[0]).trim() === 'Rev Growth YoY'
-    );
-    const ebitdaRowIndex = rows.findIndex(row =>
-      row[0] && String(row[0]).trim() === 'EBITDA Margin % Quarterly'
-    );
-
-    if (revGrowthRowIndex === -1) throw new Error('Rev Growth YoY row not found');
-    if (ebitdaRowIndex === -1) throw new Error('EBITDA Margin % Quarterly row not found');
-
-    // Pick the last quarter row in each section
-    const quarterPattern = /^\d{4}'Q[1-4]$/;
-    let latestRevRow = null;
-    for (let i = revGrowthRowIndex + 1; i < ebitdaRowIndex; i++) {
-      if (rows[i] && rows[i][0] && quarterPattern.test(String(rows[i][0]).trim()))
-        latestRevRow = rows[i];
-    }
-    let latestEbitdaRow = null;
-    for (let i = ebitdaRowIndex + 1; i < rows.length; i++) {
-      if (rows[i] && rows[i][0] && quarterPattern.test(String(rows[i][0]).trim()))
-        latestEbitdaRow = rows[i];
-    }
-
-    if (!latestRevRow || !latestEbitdaRow) throw new Error('No quarter rows found');
-    console.log('Static chart using quarter:', latestRevRow[0]);
-
+    // Static data - removed SEERA and fixed company names
+    const companies = ['ABNB', 'BKNG', 'EXPE', 'TCOM', 'TRIP', 'TRVG', 'EDR', 'DESP', 'MMYT', 'Ixigo', 'Almosafer', 'Wego', 'Webjet', 'Webjet OTA', 'Cleartrip Arabia', 'LMN', 'EaseMyTrip', 'Yatra'];
+    const revenueGrowth = [0.13, 0.12, 0.07, 0.29, 0.04, -0.08, 0.06, 0.17, 0.29, 0.26, 0.47, 0.59, null, 0.10, null, -0.07, 0.02, 0.33];
+    const ebitdaMargin = [0.21, 0.27, 0.10, 0.31, 0.07, -0.07, 0.13, 0.07, 0.14, 0.09, 0.06, 0.14, null, 0.50, null, 0.12, 0.43, 0.00];
+    
     const processedData = [];
-    headers.forEach((company, index) => {
-      if (!company || index === 0) return;
-      const revenueGrowth = parseFloat(latestRevRow[index]) / 100;
-      const ebitdaMargin = parseFloat(latestEbitdaRow[index]) / 100;
-      if (isNaN(revenueGrowth) || isNaN(ebitdaMargin)) return;
-      if (
-        revenueGrowth >= globalYDomain[0] && revenueGrowth <= globalYDomain[1] &&
-        ebitdaMargin >= globalXDomain[0] && ebitdaMargin <= globalXDomain[1]
-      ) {
-        processedData.push({ company: String(company).trim(), ebitdaMargin, revenueGrowth });
+    
+    companies.forEach((company, index) => {
+      const growth = revenueGrowth[index];
+      const margin = ebitdaMargin[index];
+      
+      // Skip if either value is null or undefined
+      if (growth === null || margin === null || growth === undefined || margin === undefined) {
+        console.log(`Skipping ${company} due to missing data`);
+        return;
+      }
+      
+      console.log(`Processing ${company}:`, {
+        revenueGrowth: growth,
+        ebitdaMargin: margin,
+        isValid: !isNaN(growth) && !isNaN(margin)
+      });
+      
+      if (!isNaN(growth) && !isNaN(margin) &&
+          growth >= globalYDomain[0] && growth <= globalYDomain[1] &&
+          margin >= globalXDomain[0] && margin <= globalXDomain[1]) {
+        processedData.push({
+          company: company,
+          ebitdaMargin: margin,
+          revenueGrowth: growth
+        });
       }
     });
-
-    if (processedData.length === 0) throw new Error('No valid data points found');
+    
+    console.log('Processed data:', processedData);
+    
+    if (processedData.length === 0) {
+      throw new Error('No valid data points found');
+    }
+    
+    // Update chart data
     chartData.value = processedData;
+    console.log('Chart data updated:', chartData.value);
+    
+    // Initialize chart
     initChart();
-
+    
   } catch (error) {
-    console.error('Static chart fetch error:', error);
+    console.error('Error processing static data:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Show error message in chart area
+    const container = d3.select('#static-chart')
+      .append('div')
+      .style('text-align', 'center')
+      .style('padding-top', '40px')
+      .style('color', '#e74c3c');
+
+    container.append('div')
+      .style('font-size', '18px')
+      .style('font-weight', 'bold')
+      .style('margin-bottom', '12px')
+      .text('Error loading data');
+
+    container.append('div')
+      .style('font-size', '14px')
+      .text('Please try refreshing the page or contact support if the issue persists.');
   }
 };
 
-  
 // Update onMounted hook
 onMounted(async () => {
   console.log('Component mounted, fetching data...');
