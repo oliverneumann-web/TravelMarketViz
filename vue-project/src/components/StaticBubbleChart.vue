@@ -218,87 +218,24 @@ const fetchDataFromUrl = async () => {
     if (!response.ok) throw new Error('Failed to fetch Google Sheet');
     const csvText = await response.text();
 
-    // Parse CSV rows
-    const rows = csvText.split('\n').map(row =>
-      row.split(',').map(cell => {
-        const cleaned = cell.trim().replace(/^["']|["']$/g, '');
-        const num = parseFloat(cleaned);
-        return isNaN(num) ? cleaned : num;
-      })
-    );
+    const { data: rows } = Papa.parse(csvText, { skipEmptyLines: false });
 
-    const headers = rows[0];
+    // LOG 1: show first 5 rows so we can see headers
+    console.log('=== FIRST 5 ROWS ===');
+    rows.slice(0, 5).forEach((r, i) => console.log(`Row ${i}:`, r));
 
-    // Find the two section header rows
-    // The label spans two CSV rows due to the line break in the cell:
-    // row N:   "Revenue growth TTM"
-    // row N+1: "12m trailing"
-    // We find the first of the pair and use the data rows that follow.
-    const revGrowthRowIndex = rows.findIndex(row =>
-      row[0] && String(row[0]).trim() === 'Revenue growth TTM'
-    );
-    const ebitdaRowIndex = rows.findIndex(row =>
-      row[0] && String(row[0]).trim() === 'EBITDA Margin TTM'
-    );
-
-    if (revGrowthRowIndex === -1) throw new Error('Revenue growth TTM row not found');
-    if (ebitdaRowIndex === -1) throw new Error('EBITDA Margin TTM row not found');
-
-    // Data starts 2 rows after the label (skip the "12m trailing" sub-row)
-    // Find the most recent quarter row in the revenue growth section
-    // by scanning forward until we hit the EBITDA section or an empty row
-    let latestRevRow = null;
-    for (let i = revGrowthRowIndex + 2; i < ebitdaRowIndex; i++) {
-      const row = rows[i];
-      if (!row || !row[0]) continue;
-      const cell = String(row[0]).trim();
-      if (/^\d{4}'Q[1-4]$/.test(cell)) latestRevRow = row;
-    }
-
-    // Find the matching row in the EBITDA section with the same quarter label
-    const targetQuarter = latestRevRow ? String(latestRevRow[0]).trim() : null;
-    let latestEbitdaRow = null;
-    for (let i = ebitdaRowIndex + 2; i < rows.length; i++) {
-      const row = rows[i];
-      if (!row || !row[0]) continue;
-      if (String(row[0]).trim() === targetQuarter) {
-        latestEbitdaRow = row;
-        break;
-      }
-    }
-
-    if (!latestRevRow || !latestEbitdaRow) throw new Error('Could not find latest quarter data rows');
-
-    console.log('Static chart using quarter:', targetQuarter);
-
-    const processedData = [];
-    headers.forEach((company, index) => {
-      if (!company || index === 0) return;
-      const revenueGrowth = parseFloat(latestRevRow[index]);
-      const ebitdaMargin = parseFloat(latestEbitdaRow[index]);
-      if (isNaN(revenueGrowth) || isNaN(ebitdaMargin)) return;
-      if (
-        revenueGrowth >= globalYDomain[0] && revenueGrowth <= globalYDomain[1] &&
-        ebitdaMargin >= globalXDomain[0] && ebitdaMargin <= globalXDomain[1]
-      ) {
-        processedData.push({
-          company: String(company).trim(),
-          ebitdaMargin,
-          revenueGrowth
-        });
+    // LOG 2: show every unique col-A value to find section headers
+    console.log('=== ALL COL-A VALUES ===');
+    rows.forEach((r, i) => {
+      if (r[0] && String(r[0]).trim() !== '') {
+        console.log(`Row ${i} col-A:`, JSON.stringify(r[0]));
       }
     });
 
-    if (processedData.length === 0) throw new Error('No valid data points found');
-
-    chartData.value = processedData;
-    initChart();
-
   } catch (error) {
-    console.error('Error loading static chart data:', error);
+    console.error('Fetch error:', error);
   }
 };
-
 // Update onMounted hook
 onMounted(async () => {
   console.log('Component mounted, fetching data...');
