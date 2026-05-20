@@ -68,7 +68,6 @@ import { onMounted, ref } from 'vue';
 import * as d3 from 'd3';
 import * as XLSX from 'xlsx';
 import { getCompanyColor, getCompanyLogo } from '../data/companyMeta';
-import Papa from 'papaparse';
 
 let chartData = ref([]);
 
@@ -218,24 +217,66 @@ const fetchDataFromUrl = async () => {
     if (!response.ok) throw new Error('Failed to fetch Google Sheet');
     const csvText = await response.text();
 
-    const { data: rows } = Papa.parse(csvText, { skipEmptyLines: false });
+    const rows = csvText.split('\n').map(row =>
+      row.split(',').map(cell => {
+        const cleaned = cell.trim().replace(/^["']|["']$/g, '');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? cleaned : num;
+      })
+    );
 
-    // LOG 1: show first 5 rows so we can see headers
-    console.log('=== FIRST 5 ROWS ===');
-    rows.slice(0, 5).forEach((r, i) => console.log(`Row ${i}:`, r));
+    const headers = rows[0];
 
-    // LOG 2: show every unique col-A value to find section headers
-    console.log('=== ALL COL-A VALUES ===');
-    rows.forEach((r, i) => {
-      if (r[0] && String(r[0]).trim() !== '') {
-        console.log(`Row ${i} col-A:`, JSON.stringify(r[0]));
+    const revGrowthRowIndex = rows.findIndex(row =>
+      row[0] && String(row[0]).trim() === 'Rev Growth YoY'
+    );
+    const ebitdaRowIndex = rows.findIndex(row =>
+      row[0] && String(row[0]).trim() === 'EBITDA Margin % Quarterly'
+    );
+
+    if (revGrowthRowIndex === -1) throw new Error('Rev Growth YoY row not found');
+    if (ebitdaRowIndex === -1) throw new Error('EBITDA Margin % Quarterly row not found');
+
+    // Pick the last quarter row in each section
+    const quarterPattern = /^\d{4}'Q[1-4]$/;
+    let latestRevRow = null;
+    for (let i = revGrowthRowIndex + 1; i < ebitdaRowIndex; i++) {
+      if (rows[i] && rows[i][0] && quarterPattern.test(String(rows[i][0]).trim()))
+        latestRevRow = rows[i];
+    }
+    let latestEbitdaRow = null;
+    for (let i = ebitdaRowIndex + 1; i < rows.length; i++) {
+      if (rows[i] && rows[i][0] && quarterPattern.test(String(rows[i][0]).trim()))
+        latestEbitdaRow = rows[i];
+    }
+
+    if (!latestRevRow || !latestEbitdaRow) throw new Error('No quarter rows found');
+    console.log('Static chart using quarter:', latestRevRow[0]);
+
+    const processedData = [];
+    headers.forEach((company, index) => {
+      if (!company || index === 0) return;
+      const revenueGrowth = parseFloat(latestRevRow[index]) / 100;
+      const ebitdaMargin = parseFloat(latestEbitdaRow[index]) / 100;
+      if (isNaN(revenueGrowth) || isNaN(ebitdaMargin)) return;
+      if (
+        revenueGrowth >= globalYDomain[0] && revenueGrowth <= globalYDomain[1] &&
+        ebitdaMargin >= globalXDomain[0] && ebitdaMargin <= globalXDomain[1]
+      ) {
+        processedData.push({ company: String(company).trim(), ebitdaMargin, revenueGrowth });
       }
     });
 
+    if (processedData.length === 0) throw new Error('No valid data points found');
+    chartData.value = processedData;
+    initChart();
+
   } catch (error) {
-    console.error('Fetch error:', error);
+    console.error('Static chart fetch error:', error);
   }
 };
+
+  
 // Update onMounted hook
 onMounted(async () => {
   console.log('Component mounted, fetching data...');
