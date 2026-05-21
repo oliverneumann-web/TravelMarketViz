@@ -100,24 +100,64 @@ const SECTION_HEADERS = new Set([
   "Rule of 40' TTM",
 ]);
 
-const parseCsvData = (csvText) => {
-  const rows = csvText.split('\n').map(row =>
-    row.split(',').map(cell => {
-      const cleaned = cell.trim().replace(/^["']|["']$/g, '');
-      const num = parseFloat(cleaned);
-      return isNaN(num) ? cleaned : num;
-    })
-  );
+// Proper RFC 4180 CSV parser — handles quoted cells containing commas and
+// newlines (the founding-year row in this sheet has both).
+const parseRfc4180 = (text) => {
+  var results = [];
+  var row = [];
+  var cell = '';
+  var inQuotes = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    var next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') { cell += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { cell += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') {
+        var n = parseFloat(cell.trim());
+        row.push(isNaN(n) ? cell.trim() : n);
+        cell = '';
+      } else if (c === '\n') {
+        var n2 = parseFloat(cell.trim());
+        row.push(isNaN(n2) ? cell.trim() : n2);
+        results.push(row);
+        row = [];
+        cell = '';
+      } else if (c !== '\r') {
+        cell += c;
+      }
+    }
+  }
+  if (cell.length > 0 || row.length > 0) {
+    var n3 = parseFloat(cell.trim());
+    row.push(isNaN(n3) ? cell.trim() : n3);
+    results.push(row);
+  }
+  return results;
+};
 
-  const headers = rows[0];
+// Return just the first line of a cell value so multi-line cells like
+// "Revenue growth TTM\n12m trailing" match their section header name.
+var firstLine = function(val) {
+  return String(val).split('\n')[0].trim();
+};
+
+const parseCsvData = (csvText) => {
+  var rows = parseRfc4180(csvText);
+
+  var headers = rows[0];
   console.log('CSV headers:', headers);
 
-  const revenueGrowthTTMIndex = rows.findIndex(row =>
-    row && String(row[0]).trim() === 'Revenue growth TTM'
-  );
-  const ebitdaMarginTTMIndex = rows.findIndex(row =>
-    row && String(row[0]).trim() === 'EBITDA Margin TTM'
-  );
+  var revenueGrowthTTMIndex = -1;
+  var ebitdaMarginTTMIndex = -1;
+  for (var i = 0; i < rows.length; i++) {
+    var label = firstLine(rows[i][0]);
+    if (label === 'Revenue growth TTM') revenueGrowthTTMIndex = i;
+    if (label === 'EBITDA Margin TTM') ebitdaMarginTTMIndex = i;
+  }
 
   if (revenueGrowthTTMIndex === -1) throw new Error('Revenue growth TTM section not found');
   if (ebitdaMarginTTMIndex === -1) throw new Error('EBITDA Margin TTM section not found');
@@ -125,45 +165,59 @@ const parseCsvData = (csvText) => {
   console.log('Revenue growth TTM at row', revenueGrowthTTMIndex);
   console.log('EBITDA Margin TTM at row', ebitdaMarginTTMIndex);
 
-  const nextSectionAfter = (startIndex) => {
-    for (let i = startIndex + 1; i < rows.length; i++) {
-      if (SECTION_HEADERS.has(String(rows[i] && rows[i][0]).trim())) return i;
+  var nextSectionAfter = function(startIndex) {
+    for (var k = startIndex + 1; k < rows.length; k++) {
+      if (SECTION_HEADERS.has(firstLine(rows[k][0]))) return k;
     }
     return rows.length;
   };
 
-  const getLastDataRow = (startIndex, endIndex) => {
-    let lastRow = null;
-    for (let i = startIndex + 1; i < endIndex; i++) {
-      const row = rows[i];
+  // Return the last row in [startIndex+1, endIndex) that has data for at least
+  // 2 companies. Requiring >= 2 skips lone early reporters (e.g. a single
+  // company that has already filed for the next quarter) so we land on the most
+  // recent quarter where a meaningful group of companies has reported.
+  var getLastDataRow = function(startIndex, endIndex) {
+    var lastRow = null;
+    for (var r = startIndex + 1; r < endIndex; r++) {
+      var row = rows[r];
       if (!row || !row[0]) continue;
-      const hasNumeric = row.slice(1).some(function(v) { return typeof v === 'number' && !isNaN(v); });
-      if (hasNumeric) lastRow = row;
+      var count = 0;
+      for (var col = 1; col < row.length; col++) {
+        var v = row[col];
+        if (typeof v === 'number' && !isNaN(v)) count++;
+      }
+      if (count >= 2) lastRow = row;
     }
     return lastRow;
   };
 
-  const revenueRow = getLastDataRow(revenueGrowthTTMIndex, nextSectionAfter(revenueGrowthTTMIndex));
-  const ebitdaRow = getLastDataRow(ebitdaMarginTTMIndex, nextSectionAfter(ebitdaMarginTTMIndex));
+  var revenueEnd = nextSectionAfter(revenueGrowthTTMIndex);
+  var ebitdaEnd = nextSectionAfter(ebitdaMarginTTMIndex);
+
+  var revenueRow = getLastDataRow(revenueGrowthTTMIndex, revenueEnd);
+  var ebitdaRow = getLastDataRow(ebitdaMarginTTMIndex, ebitdaEnd);
 
   if (!revenueRow) throw new Error('No data rows in Revenue growth TTM section');
   if (!ebitdaRow) throw new Error('No data rows in EBITDA Margin TTM section');
 
-  console.log('Using revenue row:', revenueRow[0]);
-  console.log('Using EBITDA row:', ebitdaRow[0]);
+  console.log('Using revenue row:', firstLine(revenueRow[0]));
+  console.log('Using EBITDA row:', firstLine(ebitdaRow[0]));
 
-  const processedData = [];
+  var processedData = [];
 
-  headers.forEach(function(company, j) {
-    if (!company || j === 0) return;
-    const companyStr = String(company).trim();
-    if (!companyStr) return;
+  for (var j = 1; j < headers.length; j++) {
+    var company = headers[j];
+    if (!company) continue;
+    var companyStr = String(company).trim();
+    if (!companyStr) continue;
 
-    const revenueGrowth = typeof revenueRow[j] === 'number' ? revenueRow[j] : parseFloat(revenueRow[j]);
-    const ebitdaMargin = typeof ebitdaRow[j] === 'number' ? ebitdaRow[j] : parseFloat(ebitdaRow[j]);
+    var revenueGrowth = typeof revenueRow[j] === 'number' ? revenueRow[j] : parseFloat(String(revenueRow[j] || ''));
+    var ebitdaMargin = typeof ebitdaRow[j] === 'number' ? ebitdaRow[j] : parseFloat(String(ebitdaRow[j] || ''));
 
     console.log(companyStr + ': revenue=' + revenueGrowth + ', ebitda=' + ebitdaMargin);
 
+    // Raw sheet values are stored as e.g. 12.6 (meaning 12.6%). Divide by 100
+    // to get the decimal fraction 0.126 that the chart's axis format expects.
     if (!isNaN(revenueGrowth) && !isNaN(ebitdaMargin)) {
       processedData.push({
         company: companyStr,
@@ -171,7 +225,7 @@ const parseCsvData = (csvText) => {
         revenueGrowth: revenueGrowth / 100,
       });
     }
-  });
+  }
 
   console.log('Parsed ' + processedData.length + ' data points');
   return processedData;
