@@ -1,13 +1,13 @@
 <template>
-  <div class="chart-container">
+  <div class="chart-container" ref="chartRef">
     <div class="flex justify-end mb-4 gap-4">
-      <button 
+      <button
         @click="toggleDataDisplay"
         class="px-4 py-2 bg-wego-green text-white rounded hover:bg-wego-green-dark flex items-center gap-2"
       >
         {{ showLabels ? 'Only Show Dots' : 'Show Labels' }}
       </button>
-      <button 
+      <button
         @click="saveChart"
         class="px-4 py-2 bg-wego-green text-white rounded hover:bg-wego-green-dark flex items-center gap-2"
       >
@@ -18,11 +18,17 @@
         Save Chart
       </button>
     </div>
-    <div id="static-chart" class="w-full h-full"></div>
+    <div id="static-chart" class="w-full h-full relative">
+      <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-50">
+        <div class="text-center">
+          <div class="text-lg font-semibold text-gray-700">Loading...</div>
+          <div class="text-sm text-gray-600">may take around 2 seconds</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
-<!-- TODO: detect null value and delete it from the chart -->
- <!-- TODO: add delete method for delete the logo on teh page -->
+
 <style scoped>
 .chart-container {
   width: 100%;
@@ -70,198 +76,126 @@ import * as XLSX from 'xlsx';
 import { getCompanyColor, getCompanyLogo } from '../data/companyMeta';
 
 let chartData = ref([]);
+const isLoading = ref(false);
 
 // Fixed domains for consistent scaling
 const globalXDomain = [-0.15, 0.60];  // EBITDA margin range
 const globalYDomain = [-0.15, 0.85];  // Revenue growth range
 
-// Add state to store adjusted positions
 const logoPositions = ref({});
 
-// Add drag behavior function
-const createDragBehavior = (xScale, yScale) => {
-  return d3.drag()
-    .on('drag', (event, d) => {
-      const logoGroup = d3.select(event.sourceEvent.target.parentNode);
-      const newX = parseFloat(logoGroup.select('image').attr('x')) + event.dx;
-      const newY = parseFloat(logoGroup.select('image').attr('y')) + event.dy;
-      
-      logoGroup.select('image')
-        .attr('x', newX)
-        .attr('y', newY);
-      
-      // Store the adjusted position
-      logoPositions.value[d.company] = { x: newX, y: newY };
-    });
-};
-
-// Add state for display toggle
 const showLabels = ref(false);
 
-// Add toggle function
 const toggleDataDisplay = () => {
   showLabels.value = !showLabels.value;
-  initChart(); // Redraw chart with new display type
+  initChart();
 };
 
-// Add after imports
 const EXCEL_URL = 'https://1drv.ms/x/c/130fda80f0432a83/EaUo2h8IJTZDsA5Rmm-FVDcB_-0mTOTuBOEN26R8EDarGQ?download=1';
 
-// Add after the imports and before onMounted
-const processExcelData = (file) => {
-  console.log('Processing Excel file:', file.name);
-  const reader = new FileReader();
-  
-  reader.onload = async (e) => {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      console.log('Available sheets:', workbook.SheetNames);
-      
-      // Get the TTM sheet
-      const ttmSheet = workbook.Sheets['TTM (bounded)'];
-      if (!ttmSheet) {
-        console.error('TTM (bounded) sheet not found');
-        return;
-      }
+// Shared parsing logic used by both URL fetch and manual file upload.
+// Looks for 'Revenue growth TTM\n12m trailing' and 'EBITDA Margin TTM\n12m trailing'
+// as section headers, then uses the last data row from each section.
+const processSheetData = (workbook) => {
+  const ttmSheet = workbook.Sheets['TTM (bounded)'];
+  if (!ttmSheet) throw new Error('TTM (bounded) sheet not found');
 
-      // Convert sheet to JSON with headers
-      const jsonData = XLSX.utils.sheet_to_json(ttmSheet, { header: 1 });
-      console.log('First row:', jsonData[0]);
-      
-      // Find target quarter rows
-      let growthRowIndex = -1;
-      let marginRowIndex = -1;
-      
-      jsonData.forEach((row, index) => {
-        if (!row[0]) return;
-        const quarter = String(row[0]).trim();
-        if (quarter === '2024\'Q4') {
-          if (index <= 115) {
-            growthRowIndex = index;
-          } else {
-            marginRowIndex = index;
-          }
-        }
-      });
-      
-      console.log('Found indices:', { growthRowIndex, marginRowIndex });
-      
-      if (growthRowIndex === -1 || marginRowIndex === -1) {
-        throw new Error('Required data rows not found');
-      }
-      
-      const headers = jsonData[0];
-      const growthRow = jsonData[growthRowIndex];
-      const marginRow = jsonData[marginRowIndex];
-      
-      const processedData = [];
-      
-      headers.forEach((company, index) => {
-        if (!company || index === 0) return;
-        
-        const revenueGrowth = parseFloat(growthRow[index]);
-        const ebitdaMargin = parseFloat(marginRow[index]);
-        
-        console.log(`Processing ${company}:`, {
-          revenueGrowth,
-          ebitdaMargin,
-          isValid: !isNaN(revenueGrowth) && !isNaN(ebitdaMargin)
-        });
-        
-        if (!isNaN(revenueGrowth) && !isNaN(ebitdaMargin) &&
-            revenueGrowth >= globalYDomain[0] && revenueGrowth <= globalYDomain[1] &&
-            ebitdaMargin >= globalXDomain[0] && ebitdaMargin <= globalXDomain[1]) {
-          processedData.push({
-            company: company.trim(),
-            ebitdaMargin: ebitdaMargin,
-            revenueGrowth: revenueGrowth
-          });
-        }
-      });
-      
-      console.log('Processed data:', processedData);
-      
-      if (processedData.length === 0) {
-        throw new Error('No valid data points found');
-      }
-      
-      // Update chart data
-      chartData.value = processedData;
-      console.log('Chart data updated:', chartData.value);
-      
-      // Initialize chart
-      initChart();
-      
-    } catch (error) {
-      console.error('Error processing Excel file:', error);
-      console.error('Error stack:', error.stack);
+  const jsonData = XLSX.utils.sheet_to_json(ttmSheet, { header: 1 });
+  console.log('Total rows parsed:', jsonData.length);
+
+  // Company names from first row, preserving column alignment with null for blanks
+  const headerRow = jsonData[0] || [];
+  const headers = headerRow.slice(1).map(h => (h && String(h).trim()) || null);
+  console.log('Headers:', headers.filter(Boolean));
+
+  // Normalize line endings so \r\n and \r both become \n
+  const normalizeCell = (val) => String(val).replace(/\r\n|\r/g, '\n').trim();
+
+  const revenueGrowthRowIndex = jsonData.findIndex(row =>
+    row && row[0] && normalizeCell(row[0]).includes('Revenue growth TTM')
+  );
+
+  const ebitdaRowIndex = jsonData.findIndex(row =>
+    row && row[0] && normalizeCell(row[0]).includes('EBITDA Margin TTM')
+  );
+
+  if (revenueGrowthRowIndex === -1) throw new Error('Revenue growth TTM section not found in sheet');
+  if (ebitdaRowIndex === -1) throw new Error('EBITDA Margin TTM section not found in sheet');
+
+  console.log(`Revenue growth TTM section at row ${revenueGrowthRowIndex}: "${normalizeCell(jsonData[revenueGrowthRowIndex][0])}"`);
+  console.log(`EBITDA Margin TTM section at row ${ebitdaRowIndex}: "${normalizeCell(jsonData[ebitdaRowIndex][0])}"`);
+
+  // Each section ends where the next section starts (or end of data)
+  const totalRows = jsonData.length;
+  const [revenueEnd, ebitdaEnd] = revenueGrowthRowIndex < ebitdaRowIndex
+    ? [ebitdaRowIndex, totalRows]
+    : [totalRows, revenueGrowthRowIndex];
+
+  // Returns the last row within [startIndex+1, endIndex) that has at least one numeric value
+  const getLastDataRow = (startIndex, endIndex) => {
+    let lastRow = null;
+    for (let i = startIndex + 1; i < endIndex; i++) {
+      const row = jsonData[i];
+      if (!row || !row[0]) continue;
+      const hasNumeric = headers.some((_, j) => !isNaN(parseFloat(row[j + 1])));
+      if (hasNumeric) lastRow = row;
     }
+    return lastRow;
   };
-  
-  reader.onerror = (error) => {
-    console.error('Error reading file:', error);
-  };
-  
-  reader.readAsArrayBuffer(file);
+
+  const revenueRow = getLastDataRow(revenueGrowthRowIndex, revenueEnd);
+  const ebitdaRow = getLastDataRow(ebitdaRowIndex, ebitdaEnd);
+
+  if (!revenueRow) throw new Error('No data rows found in Revenue growth TTM section');
+  if (!ebitdaRow) throw new Error('No data rows found in EBITDA Margin TTM section');
+
+  console.log(`Using revenue growth row labelled: "${revenueRow[0]}"`);
+  console.log(`Using EBITDA margin row labelled: "${ebitdaRow[0]}"`);
+
+  const processedData = [];
+
+  headers.forEach((company, j) => {
+    if (!company) return;
+    const colIndex = j + 1;
+    const revenueGrowth = parseFloat(revenueRow[colIndex]);
+    const ebitdaMargin = parseFloat(ebitdaRow[colIndex]);
+
+    console.log(`${company}: revenueGrowth=${revenueGrowth}, ebitdaMargin=${ebitdaMargin}`);
+
+    if (!isNaN(revenueGrowth) && !isNaN(ebitdaMargin)) {
+      processedData.push({
+        company,
+        ebitdaMargin: ebitdaMargin / 100,
+        revenueGrowth: revenueGrowth / 100
+      });
+    }
+  });
+
+  console.log(`Processed ${processedData.length} valid data points`);
+  return processedData;
 };
 
-// Update fetchDataFromUrl function
 const fetchDataFromUrl = async () => {
-  console.log('Using static data...');
+  console.log('Fetching data from URL:', EXCEL_URL);
+  isLoading.value = true;
   try {
-    // Static data - removed SEERA and fixed company names
-    const companies = ['ABNB', 'BKNG', 'EXPE', 'TCOM', 'TRIP', 'TRVG', 'EDR', 'DESP', 'MMYT', 'Ixigo', 'Almosafer', 'Wego', 'Webjet', 'Webjet OTA', 'Cleartrip Arabia', 'LMN', 'EaseMyTrip', 'Yatra'];
-    const revenueGrowth = [0.13, 0.12, 0.07, 0.29, 0.04, -0.08, 0.06, 0.17, 0.29, 0.26, 0.47, 0.59, null, 0.10, null, -0.07, 0.02, 0.33];
-    const ebitdaMargin = [0.21, 0.27, 0.10, 0.31, 0.07, -0.07, 0.13, 0.07, 0.14, 0.09, 0.06, 0.14, null, 0.50, null, 0.12, 0.43, 0.00];
-    
-    const processedData = [];
-    
-    companies.forEach((company, index) => {
-      const growth = revenueGrowth[index];
-      const margin = ebitdaMargin[index];
-      
-      // Skip if either value is null or undefined
-      if (growth === null || margin === null || growth === undefined || margin === undefined) {
-        console.log(`Skipping ${company} due to missing data`);
-        return;
-      }
-      
-      console.log(`Processing ${company}:`, {
-        revenueGrowth: growth,
-        ebitdaMargin: margin,
-        isValid: !isNaN(growth) && !isNaN(margin)
-      });
-      
-      if (!isNaN(growth) && !isNaN(margin) &&
-          growth >= globalYDomain[0] && growth <= globalYDomain[1] &&
-          margin >= globalXDomain[0] && margin <= globalXDomain[1]) {
-        processedData.push({
-          company: company,
-          ebitdaMargin: margin,
-          revenueGrowth: growth
-        });
-      }
-    });
-    
-    console.log('Processed data:', processedData);
-    
-    if (processedData.length === 0) {
-      throw new Error('No valid data points found');
-    }
-    
-    // Update chart data
+    const response = await fetch(EXCEL_URL);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    const arrayBuffer = await response.arrayBuffer();
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    console.log('Available sheets:', workbook.SheetNames);
+
+    const processedData = processSheetData(workbook);
+
+    if (processedData.length === 0) throw new Error('No valid data points found');
+
     chartData.value = processedData;
-    console.log('Chart data updated:', chartData.value);
-    
-    // Initialize chart
     initChart();
-    
   } catch (error) {
-    console.error('Error processing static data:', error);
+    console.error('Error fetching data:', error);
     console.error('Error stack:', error.stack);
-    
-    // Show error message in chart area
+
     const container = d3.select('#static-chart')
       .append('div')
       .style('text-align', 'center')
@@ -277,10 +211,37 @@ const fetchDataFromUrl = async () => {
     container.append('div')
       .style('font-size', '14px')
       .text('Please try refreshing the page or contact support if the issue persists.');
+  } finally {
+    isLoading.value = false;
   }
 };
 
-// Update onMounted hook
+const processExcelData = (file) => {
+  console.log('Processing uploaded Excel file:', file.name);
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      console.log('Available sheets:', workbook.SheetNames);
+
+      const processedData = processSheetData(workbook);
+
+      if (processedData.length === 0) throw new Error('No valid data points found');
+
+      chartData.value = processedData;
+      initChart();
+    } catch (error) {
+      console.error('Error processing Excel file:', error);
+      console.error('Error stack:', error.stack);
+    }
+  };
+
+  reader.onerror = (error) => console.error('Error reading file:', error);
+  reader.readAsArrayBuffer(file);
+};
+
 onMounted(async () => {
   console.log('Component mounted, fetching data...');
   await fetchDataFromUrl();
@@ -290,18 +251,17 @@ onMounted(async () => {
 const initChart = () => {
   try {
     console.log('Starting chart initialization with data:', chartData.value);
-    
+
     // Clear previous chart
     d3.select('#static-chart').selectAll('*').remove();
-    
-    // Skip if no data
+
     if (!chartData.value || chartData.value.length === 0) {
       console.log('No data to display');
       const container = d3.select('#static-chart')
         .append('div')
         .style('text-align', 'center')
         .style('padding-top', '40px')
-        .style('color', '#4e843d');  // Wego green color
+        .style('color', '#4e843d');
 
       container.append('div')
         .style('font-size', '18px')
@@ -316,7 +276,6 @@ const initChart = () => {
       return;
     }
 
-    // Log data points for debugging
     chartData.value.forEach(d => {
       console.log('Processing data point:', {
         company: d.company,
@@ -326,7 +285,7 @@ const initChart = () => {
         color: getCompanyColor(d.company)
       });
     });
-    
+
     // Create SVG
     const svg = d3.select('#static-chart').append('svg')
       .attr('width', '100%')
@@ -341,7 +300,6 @@ const initChart = () => {
     const g = svg.append("g")
       .attr("transform", `translate(${margin.left}, ${margin.top})`);
 
-    // Initialize scales with fixed domains
     const xScale = d3.scaleLinear()
       .domain(globalXDomain)
       .range([0, width]);
@@ -350,11 +308,9 @@ const initChart = () => {
       .domain(globalYDomain)
       .range([height, 0]);
 
-    // Create axes
     const xAxis = d3.axisBottom(xScale).tickFormat(d3.format('.0%'));
     const yAxis = d3.axisLeft(yScale).tickFormat(d3.format('.0%'));
 
-    // Add axes
     g.append('g')
       .attr('class', 'x-axis')
       .attr('transform', `translate(0,${height})`)
@@ -364,7 +320,6 @@ const initChart = () => {
       .attr('class', 'y-axis')
       .call(yAxis);
 
-    // Add axis labels
     g.append('text')
       .attr('class', 'x-label')
       .attr('text-anchor', 'middle')
@@ -382,7 +337,6 @@ const initChart = () => {
       .text('Revenue Growth YoY TTM')
       .style('font-size', '14px');
 
-    // Add zero lines
     g.append('line')
       .attr('class', 'zero-line')
       .attr('x1', xScale(0))
@@ -401,19 +355,15 @@ const initChart = () => {
       .attr('stroke', '#4e843d')
       .attr('stroke-dasharray', '4,4');
 
-    // Add data points
     chartData.value.forEach(d => {
       console.log('Drawing data point:', d);
-      
-      // Skip invalid data points
+
       if (!d.company || isNaN(d.ebitdaMargin) || isNaN(d.revenueGrowth)) {
         console.log('Skipping invalid data point:', d);
         return;
       }
 
-      // Add data point
       if (showLabels.value) {
-        // Add text label
         g.append('text')
           .attr('class', 'data-label')
           .attr('x', xScale(d.ebitdaMargin))
@@ -424,7 +374,6 @@ const initChart = () => {
           .style('fill', getCompanyColor(d.company))
           .text(`${(d.revenueGrowth * 100).toFixed(1)}% / ${(d.ebitdaMargin * 100).toFixed(1)}%`);
       } else {
-        // Add dot
         g.append('circle')
           .attr('class', 'data-dot')
           .attr('cx', xScale(d.ebitdaMargin))
@@ -435,22 +384,18 @@ const initChart = () => {
           .style('stroke-width', '2px');
       }
 
-      // Add logo if available
       const logoSrc = getCompanyLogo(d.company);
       if (logoSrc) {
         const img = new Image();
         img.onload = () => {
-          // Create a group for the logo to make dragging more stable
           const logoGroup = g.append('g')
             .attr('class', 'logo-group')
             .style('cursor', 'move');
 
-          // Calculate initial position (centered on the data point)
-          const logoSize = 96; // Increased from 80 to 96 (1.2x larger)
+          const logoSize = 96;
           const x = xScale(d.ebitdaMargin) - logoSize/2;
-          const y = yScale(d.revenueGrowth) - logoSize/2 - 30; // Added -20 to move logo up
-          
-          // Add the logo image
+          const y = yScale(d.revenueGrowth) - logoSize/2 - 30;
+
           logoGroup.append('image')
             .attr('class', 'logo')
             .attr('width', logoSize)
@@ -459,7 +404,6 @@ const initChart = () => {
             .attr('x', x)
             .attr('y', y);
 
-          // Add invisible background rect to make dragging easier
           logoGroup.insert('rect', 'image')
             .attr('class', 'logo-hit-area')
             .attr('x', x)
@@ -468,7 +412,6 @@ const initChart = () => {
             .attr('height', logoSize)
             .attr('fill', 'transparent');
 
-          // Apply drag behavior to the group
           logoGroup.call(d3.drag()
             .on('start', function() {
               d3.select(this).raise();
@@ -476,15 +419,13 @@ const initChart = () => {
             .on('drag', function(event) {
               const dx = event.dx;
               const dy = event.dy;
-              
-              // Update both rect and image positions
               const currentX = parseFloat(d3.select(this).select('image').attr('x'));
               const currentY = parseFloat(d3.select(this).select('image').attr('y'));
-              
+
               d3.select(this).select('rect')
                 .attr('x', currentX + dx)
                 .attr('y', currentY + dy);
-                
+
               d3.select(this).select('image')
                 .attr('x', currentX + dx)
                 .attr('y', currentY + dy);
@@ -500,14 +441,12 @@ const initChart = () => {
   }
 };
 
-// Add save chart function
 const saveChart = async () => {
   try {
     const svgNode = document.querySelector('#static-chart svg');
     const svgWidth = svgNode.viewBox.baseVal.width || 1200;
     const svgHeight = svgNode.viewBox.baseVal.height || 840;
-    
-    // First, load all images
+
     const images = svgNode.querySelectorAll('image');
     await Promise.all(Array.from(images).map(async (image) => {
       try {
@@ -525,43 +464,33 @@ const saveChart = async () => {
         image.remove();
       }
     }));
-    
+
     const svgData = new XMLSerializer().serializeToString(svgNode);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
-    // Set ultra-high resolution scale
-    const scale = 8;  // Increased from 4 to 8 for maximum quality
+
+    const scale = 8;
     canvas.width = svgWidth * scale;
     canvas.height = svgHeight * scale;
-    
-    // Enable maximum quality image rendering
+
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    
-    // Set white background
+
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Set image source with proper SVG dimensions
+
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const svgUrl = URL.createObjectURL(svgBlob);
     img.src = svgUrl;
-    
-    // Clean up the object URL after loading
+
     img.onload = () => {
       URL.revokeObjectURL(svgUrl);
-      
-      // Scale the context while maintaining aspect ratio
       ctx.scale(scale, scale);
-      
-      // Draw the image at the correct size
       ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
-      
-      // Create download link with maximum quality PNG
+
       const link = document.createElement('a');
-      link.download = '2024Q4_Market_Performance.png';
+      link.download = 'TTM_Market_Performance.png';
       canvas.toBlob((blob) => {
         link.href = URL.createObjectURL(blob);
         link.click();
@@ -573,9 +502,8 @@ const saveChart = async () => {
   }
 };
 
-// Expose methods
 defineExpose({
   processExcelData,
   saveChart
 });
-</script> 
+</script>
