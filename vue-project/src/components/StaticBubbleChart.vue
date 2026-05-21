@@ -367,8 +367,10 @@ const parseRfc4180 = (text) => {
 
 // Return just the first line of a cell value so multi-line cells like
 // "Revenue growth TTM\n12m trailing" match their section header name.
+// Normalize curly/smart apostrophes to straight apostrophes so Google Sheets'
+// auto-corrected quotes don't break the SECTION_HEADERS lookup.
 var firstLine = function(val) {
-  return String(val).split('\n')[0].trim();
+  return String(val).split('\n')[0].trim().replace(/[‘’‚‛′‵]/g, "'");
 };
 
 // Format a raw period label (e.g. "2024'Q4", "Dec 2024") into a readable title.
