@@ -26,6 +26,155 @@
         </div>
       </div>
     </div>
+
+    <!-- Chart Controls Section -->
+    <form class="mt-8">
+      <div class="space-y-12">
+        <div class="grid grid-cols-1 gap-x-8 gap-y-10 border-b border-gray-900/10 pb-12 md:grid-cols-3">
+          <div>
+            <h2 class="text-base/7 font-semibold text-gray-900">Chart Settings</h2>
+            <p class="mt-1 text-sm/6 text-gray-600">Adjust the chart dimensions and axis ranges to customize the visualization.</p>
+          </div>
+
+          <div class="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6 md:col-span-2">
+            <!-- Chart Dimensions -->
+            <div class="sm:col-span-3">
+              <label for="chart-width" class="block text-sm/6 font-medium text-gray-900">Width (px)</label>
+              <div class="mt-2 grid grid-cols-1">
+                <input
+                  type="text"
+                  id="chart-width"
+                  v-model="chartDimensions.width"
+                  @input="validateAndUpdateDimensions('width')"
+                  :class="[
+                    'col-start-1 row-start-1 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6',
+                    chartDimensions.widthError ? 'outline-red-300 focus:outline-red-600' : 'outline-gray-300 focus:outline-indigo-600'
+                  ]"
+                  placeholder="1200"
+                />
+                <ExclamationCircleIcon
+                  v-if="chartDimensions.widthError"
+                  class="pointer-events-none col-start-1 row-start-1 mr-3 size-5 self-center justify-self-end text-red-500 sm:size-4"
+                />
+              </div>
+              <p v-if="chartDimensions.widthError" class="mt-1 text-sm text-red-600">{{ chartDimensions.widthError }}</p>
+            </div>
+
+            <div class="sm:col-span-3">
+              <label for="chart-height" class="block text-sm/6 font-medium text-gray-900">Height (px)</label>
+              <div class="mt-2 grid grid-cols-1">
+                <input
+                  type="text"
+                  id="chart-height"
+                  v-model="chartDimensions.height"
+                  @input="validateAndUpdateDimensions('height')"
+                  :class="[
+                    'col-start-1 row-start-1 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6',
+                    chartDimensions.heightError ? 'outline-red-300 focus:outline-red-600' : 'outline-gray-300 focus:outline-indigo-600'
+                  ]"
+                  placeholder="840"
+                />
+                <ExclamationCircleIcon
+                  v-if="chartDimensions.heightError"
+                  class="pointer-events-none col-start-1 row-start-1 mr-3 size-5 self-center justify-self-end text-red-500 sm:size-4"
+                />
+              </div>
+              <p v-if="chartDimensions.heightError" class="mt-1 text-sm text-red-600">{{ chartDimensions.heightError }}</p>
+            </div>
+
+            <!-- X-Axis Range -->
+            <div class="sm:col-span-3">
+              <label for="x-min" class="block text-sm/6 font-medium text-gray-900">X-Axis Min (%)</label>
+              <div class="mt-2 grid grid-cols-1">
+                <input
+                  type="text"
+                  id="x-min"
+                  v-model="xAxisRange.min"
+                  @input="validateAndUpdateRange('x', 'min')"
+                  :class="[
+                    'col-start-1 row-start-1 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6',
+                    xAxisRange.minError ? 'outline-red-300 focus:outline-red-600' : 'outline-gray-300 focus:outline-indigo-600'
+                  ]"
+                  placeholder="-15"
+                />
+                <ExclamationCircleIcon
+                  v-if="xAxisRange.minError"
+                  class="pointer-events-none col-start-1 row-start-1 mr-3 size-5 self-center justify-self-end text-red-500 sm:size-4"
+                />
+              </div>
+              <p v-if="xAxisRange.minError" class="mt-1 text-sm text-red-600">{{ xAxisRange.minError }}</p>
+            </div>
+
+            <div class="sm:col-span-3">
+              <label for="x-max" class="block text-sm/6 font-medium text-gray-900">X-Axis Max (%)</label>
+              <div class="mt-2 grid grid-cols-1">
+                <input
+                  type="text"
+                  id="x-max"
+                  v-model="xAxisRange.max"
+                  @input="validateAndUpdateRange('x', 'max')"
+                  :class="[
+                    'col-start-1 row-start-1 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6',
+                    xAxisRange.maxError ? 'outline-red-300 focus:outline-red-600' : 'outline-gray-300 focus:outline-indigo-600'
+                  ]"
+                  placeholder="60"
+                />
+                <ExclamationCircleIcon
+                  v-if="xAxisRange.maxError"
+                  class="pointer-events-none col-start-1 row-start-1 mr-3 size-5 self-center justify-self-end text-red-500 sm:size-4"
+                />
+              </div>
+              <p v-if="xAxisRange.maxError" class="mt-1 text-sm text-red-600">{{ xAxisRange.maxError }}</p>
+            </div>
+
+            <!-- Y-Axis Range -->
+            <div class="sm:col-span-3">
+              <label for="y-min" class="block text-sm/6 font-medium text-gray-900">Y-Axis Min (%)</label>
+              <div class="mt-2 grid grid-cols-1">
+                <input
+                  type="text"
+                  id="y-min"
+                  v-model="yAxisRange.min"
+                  @input="validateAndUpdateRange('y', 'min')"
+                  :class="[
+                    'col-start-1 row-start-1 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6',
+                    yAxisRange.minError ? 'outline-red-300 focus:outline-red-600' : 'outline-gray-300 focus:outline-indigo-600'
+                  ]"
+                  placeholder="-15"
+                />
+                <ExclamationCircleIcon
+                  v-if="yAxisRange.minError"
+                  class="pointer-events-none col-start-1 row-start-1 mr-3 size-5 self-center justify-self-end text-red-500 sm:size-4"
+                />
+              </div>
+              <p v-if="yAxisRange.minError" class="mt-1 text-sm text-red-600">{{ yAxisRange.minError }}</p>
+            </div>
+
+            <div class="sm:col-span-3">
+              <label for="y-max" class="block text-sm/6 font-medium text-gray-900">Y-Axis Max (%)</label>
+              <div class="mt-2 grid grid-cols-1">
+                <input
+                  type="text"
+                  id="y-max"
+                  v-model="yAxisRange.max"
+                  @input="validateAndUpdateRange('y', 'max')"
+                  :class="[
+                    'col-start-1 row-start-1 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6',
+                    yAxisRange.maxError ? 'outline-red-300 focus:outline-red-600' : 'outline-gray-300 focus:outline-indigo-600'
+                  ]"
+                  placeholder="85"
+                />
+                <ExclamationCircleIcon
+                  v-if="yAxisRange.maxError"
+                  class="pointer-events-none col-start-1 row-start-1 mr-3 size-5 self-center justify-self-end text-red-500 sm:size-4"
+                />
+              </div>
+              <p v-if="yAxisRange.maxError" class="mt-1 text-sm text-red-600">{{ yAxisRange.maxError }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
   </div>
 </template>
 
@@ -71,17 +220,88 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
+import { ExclamationCircleIcon } from '@heroicons/vue/16/solid';
 import * as d3 from 'd3';
 import * as XLSX from 'xlsx';
 import { getCompanyColor, getCompanyLogo } from '../data/companyMeta';
 
 const chartData = ref([]);
 const isLoading = ref(false);
-
-const globalXDomain = [-0.15, 0.60];
-const globalYDomain = [-0.15, 0.85];
+const chartTitle = ref('TTM Market Performance');
 
 const showLabels = ref(false);
+
+// Chart dimension controls (mirrors AnimatedBubbleChart)
+const chartDimensions = ref({
+  width: '1200',
+  height: '840',
+  widthError: '',
+  heightError: '',
+});
+
+const xAxisRange = ref({
+  min: '-15',
+  max: '60',
+  minError: '',
+  maxError: '',
+});
+
+const yAxisRange = ref({
+  min: '-15',
+  max: '85',
+  minError: '',
+  maxError: '',
+});
+
+const validateAndUpdateDimensions = (dimension) => {
+  const value = parseInt(chartDimensions.value[dimension]);
+  chartDimensions.value[`${dimension}Error`] = '';
+
+  if (isNaN(value)) {
+    chartDimensions.value[`${dimension}Error`] = 'Please enter a valid number';
+    return;
+  }
+  if (value < 200) {
+    chartDimensions.value[`${dimension}Error`] = 'Value must be at least 200px';
+    return;
+  }
+  if (value > 5000) {
+    chartDimensions.value[`${dimension}Error`] = 'Value must not exceed 5000px';
+    return;
+  }
+
+  if (!chartDimensions.value.widthError && !chartDimensions.value.heightError) {
+    initChart();
+  }
+};
+
+const validateAndUpdateRange = (axis, bound) => {
+  const range = axis === 'x' ? xAxisRange.value : yAxisRange.value;
+  const value = parseFloat(range[bound]);
+  range[`${bound}Error`] = '';
+
+  if (isNaN(value)) {
+    range[`${bound}Error`] = 'Please enter a valid number';
+    return;
+  }
+
+  const otherBound = bound === 'min' ? 'max' : 'min';
+  const otherValue = parseFloat(range[otherBound]);
+  if (!isNaN(otherValue)) {
+    if (bound === 'min' && value >= otherValue) {
+      range[`${bound}Error`] = 'Min value must be less than max';
+      return;
+    }
+    if (bound === 'max' && value <= otherValue) {
+      range[`${bound}Error`] = 'Max value must be greater than min';
+      return;
+    }
+  }
+
+  if (!range.minError && !range.maxError) {
+    initChart();
+  }
+};
 
 const toggleDataDisplay = () => {
   showLabels.value = !showLabels.value;
@@ -145,6 +365,16 @@ var firstLine = function(val) {
   return String(val).split('\n')[0].trim();
 };
 
+// Format a raw period label (e.g. "2024'Q4", "Dec 2024") into a readable title.
+const formatPeriodLabel = (raw) => {
+  if (!raw) return '';
+  const label = firstLine(raw);
+  // Handle "YYYY'QN" format produced by the animated chart sheets
+  const quarterMatch = label.match(/^(\d{4})'(Q[1-4])$/);
+  if (quarterMatch) return `${quarterMatch[1]} ${quarterMatch[2]}`;
+  return label;
+};
+
 const parseCsvData = (csvText) => {
   var rows = parseRfc4180(csvText);
 
@@ -203,6 +433,9 @@ const parseCsvData = (csvText) => {
   console.log('Using revenue row:', firstLine(revenueRow[0]));
   console.log('Using EBITDA row:', firstLine(ebitdaRow[0]));
 
+  // Derive title from the period label in the data row
+  const periodLabel = formatPeriodLabel(revenueRow[0]);
+
   var processedData = [];
 
   for (var j = 1; j < headers.length; j++) {
@@ -228,7 +461,7 @@ const parseCsvData = (csvText) => {
   }
 
   console.log('Parsed ' + processedData.length + ' data points');
-  return processedData;
+  return { data: processedData, periodLabel };
 };
 
 const showError = (message) => {
@@ -255,9 +488,10 @@ const fetchDataFromUrl = async () => {
     const response = await fetch(GOOGLE_SHEET_URL);
     if (!response.ok) throw new Error('HTTP error: ' + response.status);
     const csvText = await response.text();
-    const processedData = parseCsvData(csvText);
+    const { data: processedData, periodLabel } = parseCsvData(csvText);
     if (processedData.length === 0) throw new Error('No valid data points found');
     chartData.value = processedData;
+    if (periodLabel) chartTitle.value = 'TTM Market Performance — ' + periodLabel;
     initChart();
   } catch (error) {
     console.error('Error fetching data:', error);
@@ -275,11 +509,14 @@ const processExcelData = (file) => {
       const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       console.log('Sheets:', workbook.SheetNames);
       let processedData = [];
+      let foundPeriodLabel = '';
       for (let s = 0; s < workbook.SheetNames.length; s++) {
         try {
           const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[s]]);
-          processedData = parseCsvData(csvText);
-          if (processedData.length > 0) {
+          const { data, periodLabel } = parseCsvData(csvText);
+          if (data.length > 0) {
+            processedData = data;
+            foundPeriodLabel = periodLabel;
             console.log('Found TTM data in sheet: ' + workbook.SheetNames[s]);
             break;
           }
@@ -289,6 +526,7 @@ const processExcelData = (file) => {
       }
       if (processedData.length === 0) throw new Error('No TTM data found in any sheet');
       chartData.value = processedData;
+      if (foundPeriodLabel) chartTitle.value = 'TTM Market Performance — ' + foundPeriodLabel;
       initChart();
     } catch (error) {
       console.error('Error processing file:', error);
@@ -324,25 +562,46 @@ const initChart = () => {
       return;
     }
 
+    const svgWidth = parseInt(chartDimensions.value.width) || 1200;
+    const svgHeight = parseInt(chartDimensions.value.height) || 840;
+
+    const xMin = parseFloat(xAxisRange.value.min) / 100;
+    const xMax = parseFloat(xAxisRange.value.max) / 100;
+    const yMin = parseFloat(yAxisRange.value.min) / 100;
+    const yMax = parseFloat(yAxisRange.value.max) / 100;
+
+    const xDomain = [isNaN(xMin) ? -0.15 : xMin, isNaN(xMax) ? 0.60 : xMax];
+    const yDomain = [isNaN(yMin) ? -0.15 : yMin, isNaN(yMax) ? 0.85 : yMax];
+
     const svg = d3.select('#static-chart').append('svg')
       .attr('width', '100%')
       .attr('height', '100%')
-      .attr('viewBox', '0 0 1200 840')
+      .attr('viewBox', '0 0 ' + svgWidth + ' ' + svgHeight)
       .attr('preserveAspectRatio', 'xMidYMid meet');
 
-    const margin = { top: 40, right: 20, bottom: 50, left: 60 };
-    const width = 1200 - margin.left - margin.right;
-    const height = 840 - margin.top - margin.bottom;
+    const margin = { top: 60, right: 20, bottom: 50, left: 60 };
+    const width = svgWidth - margin.left - margin.right;
+    const height = svgHeight - margin.top - margin.bottom;
+
+    // Dynamic title
+    svg.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('x', svgWidth / 2)
+      .attr('y', 30)
+      .style('font-size', '18px')
+      .style('font-weight', '600')
+      .style('fill', '#1e293b')
+      .text(chartTitle.value);
 
     const g = svg.append('g')
       .attr('transform', 'translate(' + margin.left + ', ' + margin.top + ')');
 
     const xScale = d3.scaleLinear()
-      .domain(globalXDomain)
+      .domain(xDomain)
       .range([0, width]);
 
     const yScale = d3.scaleLinear()
-      .domain(globalYDomain)
+      .domain(yDomain)
       .range([height, 0]);
 
     g.append('g')
@@ -369,19 +628,24 @@ const initChart = () => {
       .text('Revenue Growth TTM')
       .style('font-size', '14px');
 
-    g.append('line')
-      .attr('class', 'zero-line')
-      .attr('x1', xScale(0)).attr('y1', 0)
-      .attr('x2', xScale(0)).attr('y2', height)
-      .attr('stroke', '#4e843d')
-      .attr('stroke-dasharray', '4,4');
+    // Zero lines (only when 0 is within the visible domain)
+    if (xDomain[0] <= 0 && xDomain[1] >= 0) {
+      g.append('line')
+        .attr('class', 'zero-line')
+        .attr('x1', xScale(0)).attr('y1', 0)
+        .attr('x2', xScale(0)).attr('y2', height)
+        .attr('stroke', '#4e843d')
+        .attr('stroke-dasharray', '4,4');
+    }
 
-    g.append('line')
-      .attr('class', 'zero-line')
-      .attr('x1', 0).attr('y1', yScale(0))
-      .attr('x2', width).attr('y2', yScale(0))
-      .attr('stroke', '#4e843d')
-      .attr('stroke-dasharray', '4,4');
+    if (yDomain[0] <= 0 && yDomain[1] >= 0) {
+      g.append('line')
+        .attr('class', 'zero-line')
+        .attr('x1', 0).attr('y1', yScale(0))
+        .attr('x2', width).attr('y2', yScale(0))
+        .attr('stroke', '#4e843d')
+        .attr('stroke-dasharray', '4,4');
+    }
 
     chartData.value.forEach(function(d) {
       if (!d.company || isNaN(d.ebitdaMargin) || isNaN(d.revenueGrowth)) return;
