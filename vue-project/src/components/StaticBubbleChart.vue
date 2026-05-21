@@ -358,7 +358,7 @@ const parseRfc4180 = (text) => {
 
 // Return just the first line of a multi-line cell value.
 var firstLine = function(val) {
-  return String(val).split(‘\n’)[0].trim();
+  return String(val).split("\n")[0].trim();
 };
 
 // Format a raw period label (e.g. "2024'Q4", "Dec 2024") into a readable title.
