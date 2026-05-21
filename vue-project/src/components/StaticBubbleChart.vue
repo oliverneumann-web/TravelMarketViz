@@ -603,11 +603,11 @@ const initChart = () => {
     g.append('g')
       .attr('class', 'x-axis')
       .attr('transform', 'translate(0,' + height + ')')
-      .call(d3.axisBottom(xScale).tickValues(d3.range(Math.ceil(xDomain[0] * 10) / 10, xDomain[1] + 0.001, 0.1)).tickFormat(d3.format('.0%')));
+      .call(d3.axisBottom(xScale).tickValues(d3.range(Math.ceil(xDomain[0] * 20) / 20, xDomain[1] + 0.001, 0.05)).tickFormat(d3.format('.0%')));
 
     g.append('g')
       .attr('class', 'y-axis')
-      .call(d3.axisLeft(yScale).tickValues(d3.range(Math.ceil(yDomain[0] * 10) / 10, yDomain[1] + 0.001, 0.1)).tickFormat(d3.format('.0%')));
+      .call(d3.axisLeft(yScale).tickValues(d3.range(Math.ceil(yDomain[0] * 20) / 20, yDomain[1] + 0.001, 0.05)).tickFormat(d3.format('.0%')));
 
     g.append('text')
       .attr('text-anchor', 'middle')
