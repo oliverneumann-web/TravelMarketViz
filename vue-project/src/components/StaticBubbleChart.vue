@@ -310,15 +310,6 @@ const toggleDataDisplay = () => {
 
 const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYwQTSYwig7AZ0fjPniLVfUUJnLz3PP4f4fBtqkBNPYqrkKtQyZDaB99kHk2eCzuCh5i8oxTPCHeQ9/pub?gid=1144102204&output=csv';
 
-const SECTION_HEADERS = new Set([
-  'Rev Growth YoY',
-  'Revenue YoY',
-  'Revenue growth TTM',
-  'EBITDA Margin % Annual',
-  'EBITDA Margin % Quarterly',
-  'EBITDA Margin TTM',
-  "Rule of 40' TTM",
-]);
 
 // Proper RFC 4180 CSV parser — handles quoted cells containing commas and
 // newlines (the founding-year row in this sheet has both).
@@ -365,12 +356,9 @@ const parseRfc4180 = (text) => {
   return results;
 };
 
-// Return just the first line of a cell value so multi-line cells like
-// "Revenue growth TTM\n12m trailing" match their section header name.
-// Normalize curly/smart apostrophes to straight apostrophes so Google Sheets'
-// auto-corrected quotes don't break the SECTION_HEADERS lookup.
+// Return just the first line of a multi-line cell value.
 var firstLine = function(val) {
-  return String(val).split('\n')[0].trim().replace(/[‘’‚‛′‵]/g, "'");
+  return String(val).split(‘\n’)[0].trim();
 };
 
 // Format a raw period label (e.g. "2024'Q4", "Dec 2024") into a readable title.
@@ -403,9 +391,9 @@ const parseCsvData = (csvText) => {
   console.log('Revenue growth TTM at row', revenueGrowthTTMIndex);
   console.log('EBITDA Margin TTM at row', ebitdaMarginTTMIndex);
 
-  var nextSectionAfter = function(startIndex) {
+  var nextBlankRowAfter = function(startIndex) {
     for (var k = startIndex + 1; k < rows.length; k++) {
-      if (SECTION_HEADERS.has(firstLine(rows[k][0]))) return k;
+      if (!rows[k] || !String(rows[k][0] || '').trim()) return k;
     }
     return rows.length;
   };
@@ -429,8 +417,8 @@ const parseCsvData = (csvText) => {
     return lastRow;
   };
 
-  var revenueEnd = nextSectionAfter(revenueGrowthTTMIndex);
-  var ebitdaEnd = nextSectionAfter(ebitdaMarginTTMIndex);
+  var revenueEnd = nextBlankRowAfter(revenueGrowthTTMIndex);
+  var ebitdaEnd = nextBlankRowAfter(ebitdaMarginTTMIndex);
 
   var revenueRow = getLastDataRow(revenueGrowthTTMIndex, revenueEnd);
   var ebitdaRow = getLastDataRow(ebitdaMarginTTMIndex, ebitdaEnd);
