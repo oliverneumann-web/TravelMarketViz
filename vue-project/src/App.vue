@@ -243,7 +243,7 @@
         <!-- Static 2024Q3 Chart -->
         <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
           <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-wego-gray">2024 Yearly Market Performance</h2>
+            <h2 class="text-xl font-semibold text-wego-gray">TTM Market Performance</h2>
           </div>
           <StaticBubbleChart ref="staticBubbleChartRef" />
         </div>
