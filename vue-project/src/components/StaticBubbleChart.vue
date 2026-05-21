@@ -497,7 +497,7 @@ const fetchDataFromUrl = async () => {
     const { data: processedData, periodLabel } = parseCsvData(csvText);
     if (processedData.length === 0) throw new Error('No valid data points found');
     chartData.value = processedData;
-    if (periodLabel) chartTitle.value = 'Four Quarters Ending' + periodLabel;
+    if (periodLabel) chartTitle.value = 'Four Quarters Ending ' + periodLabel;
     initChart();
   } catch (error) {
     console.error('Error fetching data:', error);
@@ -532,7 +532,7 @@ const processExcelData = (file) => {
       }
       if (processedData.length === 0) throw new Error('No TTM data found in any sheet');
       chartData.value = processedData;
-      if (foundPeriodLabel) chartTitle.value = 'Four Quarters Ending' + foundPeriodLabel;
+      if (foundPeriodLabel) chartTitle.value = 'Four Quarters Ending ' + foundPeriodLabel;
       initChart();
     } catch (error) {
       console.error('Error processing file:', error);
