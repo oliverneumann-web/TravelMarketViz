@@ -227,7 +227,7 @@ import { getCompanyColor, getCompanyLogo } from '../data/companyMeta';
 
 const chartData = ref([]);
 const isLoading = ref(false);
-const chartTitle = ref('TTM Market Performance');
+const chartTitle = ref('');
 
 const showLabels = ref(false);
 
@@ -327,6 +327,13 @@ const parseRfc4180 = (text) => {
   var row = [];
   var cell = '';
   var inQuotes = false;
+  var colIndex = 0;
+  var pushCell = function(str, col) {
+    // First column is always a label — keep as string to preserve values like "2026 Q1"
+    if (col === 0) { row.push(str); return; }
+    var n = parseFloat(str);
+    row.push(isNaN(n) ? str : n);
+  };
   for (var i = 0; i < text.length; i++) {
     var c = text[i];
     var next = text[i + 1];
@@ -337,23 +344,22 @@ const parseRfc4180 = (text) => {
     } else {
       if (c === '"') { inQuotes = true; }
       else if (c === ',') {
-        var n = parseFloat(cell.trim());
-        row.push(isNaN(n) ? cell.trim() : n);
+        pushCell(cell.trim(), colIndex);
         cell = '';
+        colIndex++;
       } else if (c === '\n') {
-        var n2 = parseFloat(cell.trim());
-        row.push(isNaN(n2) ? cell.trim() : n2);
+        pushCell(cell.trim(), colIndex);
         results.push(row);
         row = [];
         cell = '';
+        colIndex = 0;
       } else if (c !== '\r') {
         cell += c;
       }
     }
   }
   if (cell.length > 0 || row.length > 0) {
-    var n3 = parseFloat(cell.trim());
-    row.push(isNaN(n3) ? cell.trim() : n3);
+    pushCell(cell.trim(), colIndex);
     results.push(row);
   }
   return results;
@@ -491,7 +497,7 @@ const fetchDataFromUrl = async () => {
     const { data: processedData, periodLabel } = parseCsvData(csvText);
     if (processedData.length === 0) throw new Error('No valid data points found');
     chartData.value = processedData;
-    if (periodLabel) chartTitle.value = 'TTM Market Performance — ' + periodLabel;
+    if (periodLabel) chartTitle.value = periodLabel;
     initChart();
   } catch (error) {
     console.error('Error fetching data:', error);
@@ -526,7 +532,7 @@ const processExcelData = (file) => {
       }
       if (processedData.length === 0) throw new Error('No TTM data found in any sheet');
       chartData.value = processedData;
-      if (foundPeriodLabel) chartTitle.value = 'TTM Market Performance — ' + foundPeriodLabel;
+      if (foundPeriodLabel) chartTitle.value = foundPeriodLabel;
       initChart();
     } catch (error) {
       console.error('Error processing file:', error);
