@@ -230,6 +230,7 @@ const isLoading = ref(false);
 const chartTitle = ref('');
 
 const showLabels = ref(false);
+const userHasSetRanges = ref(false);
 
 // Chart dimension controls (mirrors AnimatedBubbleChart)
 const chartDimensions = ref({
@@ -299,6 +300,7 @@ const validateAndUpdateRange = (axis, bound) => {
   }
 
   if (!range.minError && !range.maxError) {
+    userHasSetRanges.value = true;
     initChart();
   }
 };
@@ -487,6 +489,7 @@ const fetchDataFromUrl = async () => {
     const { data: processedData, periodLabel } = parseCsvData(csvText);
     if (processedData.length === 0) throw new Error('No valid data points found');
     chartData.value = processedData;
+    userHasSetRanges.value = false;
     if (periodLabel) chartTitle.value = 'Four Quarters Ending ' + periodLabel;
     initChart();
   } catch (error) {
@@ -522,6 +525,7 @@ const processExcelData = (file) => {
       }
       if (processedData.length === 0) throw new Error('No TTM data found in any sheet');
       chartData.value = processedData;
+      userHasSetRanges.value = false;
       if (foundPeriodLabel) chartTitle.value = 'Four Quarters Ending ' + foundPeriodLabel;
       initChart();
     } catch (error) {
@@ -561,13 +565,50 @@ const initChart = () => {
     const svgWidth = parseInt(chartDimensions.value.width) || 1200;
     const svgHeight = parseInt(chartDimensions.value.height) || 840;
 
-    const xMin = parseFloat(xAxisRange.value.min) / 100;
-    const xMax = parseFloat(xAxisRange.value.max) / 100;
-    const yMin = parseFloat(yAxisRange.value.min) / 100;
-    const yMax = parseFloat(yAxisRange.value.max) / 100;
+    let xDomain, yDomain;
 
-    const xDomain = [isNaN(xMin) ? -0.15 : xMin, isNaN(xMax) ? 0.60 : xMax];
-    const yDomain = [isNaN(yMin) ? -0.15 : yMin, isNaN(yMax) ? 0.85 : yMax];
+    if (userHasSetRanges.value) {
+      const xMin = parseFloat(xAxisRange.value.min) / 100;
+      const xMax = parseFloat(xAxisRange.value.max) / 100;
+      const yMin = parseFloat(yAxisRange.value.min) / 100;
+      const yMax = parseFloat(yAxisRange.value.max) / 100;
+      xDomain = [isNaN(xMin) ? -0.15 : xMin, isNaN(xMax) ? 0.60 : xMax];
+      yDomain = [isNaN(yMin) ? -0.15 : yMin, isNaN(yMax) ? 0.85 : yMax];
+    } else {
+      // Auto-fit: compute domains from data with outlier trimming
+      const computeTrimmedDomain = (values, defaultDomain) => {
+        if (!values.length) return defaultDomain;
+        const sorted = [...values].sort((a, b) => a - b);
+        const outliers = new Set();
+        for (let i = 0; i < Math.min(3, sorted.length - 1); i++) {
+          const gap = sorted[i + 1] - sorted[i];
+          const rangeToMax = sorted[sorted.length - 1] - sorted[i + 1];
+          if (gap > rangeToMax / 2) { outliers.add(sorted[i]); } else { break; }
+        }
+        for (let i = sorted.length - 1; i > Math.max(sorted.length - 4, 0); i--) {
+          const gap = sorted[i] - sorted[i - 1];
+          const rangeFromMin = sorted[i - 1] - sorted[0];
+          if (gap > rangeFromMin / 2) { outliers.add(sorted[i]); } else { break; }
+        }
+        const filtered = sorted.filter(v => !outliers.has(v));
+        if (!filtered.length) return defaultDomain;
+        const trimMin = filtered[0];
+        const trimMax = filtered[filtered.length - 1];
+        const pad = Math.max(0.05, (trimMax - trimMin) * 0.1);
+        return [trimMin - pad, trimMax + pad];
+      };
+
+      const ebitdaValues = chartData.value.map(d => d.ebitdaMargin).filter(v => Number.isFinite(v));
+      const revenueValues = chartData.value.map(d => d.revenueGrowth).filter(v => Number.isFinite(v));
+      xDomain = computeTrimmedDomain(ebitdaValues, [-0.15, 0.60]);
+      yDomain = computeTrimmedDomain(revenueValues, [-0.15, 0.85]);
+
+      // Sync auto-computed values back to the UI inputs
+      xAxisRange.value.min = (xDomain[0] * 100).toFixed(0);
+      xAxisRange.value.max = (xDomain[1] * 100).toFixed(0);
+      yAxisRange.value.min = (yDomain[0] * 100).toFixed(0);
+      yAxisRange.value.max = (yDomain[1] * 100).toFixed(0);
+    }
 
     const svg = d3.select('#static-chart').append('svg')
       .attr('width', '100%')
